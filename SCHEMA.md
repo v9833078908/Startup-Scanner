@@ -30,9 +30,9 @@ has_founder_signal: bool    # Does description mention founder credentials?
 barriers: list[string]     # 2-3 specific barriers/risks identified by LLM
 one_liner: string|null     # 1-sentence summary (Russian)
 category: string|null      # Specific niche string (e.g., "AI code review")
-# Added by research gate (after research enrichment):
-analysis_ready: bool       # Has enough evidence for expensive deep analysis
-build_priority: string     # "high" (rare signal found) / "medium" (build candidate, no rare signal)
+# Added by research gate (legacy unified gate, after research enrichment):
+analysis_ready: bool       # Legacy: has enough evidence for deep analysis (pre-dual-track)
+build_priority: string     # "high" (rare signal found / oss base available) / "medium" (no rare signal)
 has_team_data: bool         # Research found specific founder/team info
 has_traction_data: bool     # Research found revenue, users, growth data
 has_competitive_context: bool  # Research found named competitors, market positioning
@@ -41,6 +41,16 @@ oss_commercializable: bool  # Open-source project with no clear monetization
 cross_sell_fit: bool        # Product useful to iFree's B2B tech clients
 underserved_niche: bool     # Fragmented market, no dominant leader
 clear_localization_path: bool  # Adaptable for CIS market in <3 months
+# Added by invest gate (after invest research):
+invest_analysis_ready: bool    # Has enough invest evidence for deep analysis
+# (has_team_data, has_traction_data, has_competitive_context documented above)
+# Added by build gate (after build research):
+build_analysis_ready: bool     # Has enough build evidence for deep analysis
+cis_gap_confirmed: bool        # Research confirms no established CIS competitor
+replicable_confirmed: bool     # Research confirms buildable by small team
+oss_base_available: bool       # Usable open-source project exists as starting point
+market_demand_signals: bool    # Search results show demand/interest in CIS
+# (clear_localization_path, build_priority documented above)
 ```
 
 **Note:** `invest_score` and `build_score` do NOT exist in 1_ideas/ files.
@@ -53,7 +63,11 @@ Body: Markdown with startup name as H1, URL, round, description.
 Directory per startup. Files:
 - `website.md` — scraped website content with URL and scrape timestamp
 - `web_research.md` — LLM-synthesized research summary (founders, business model, competitors, traction, risks)
-- `gate.md` — research gate evaluation results (invest evidence + build signals + analysis_ready decision)
+- `gate.md` — legacy unified research gate evaluation results
+- `invest_research.md` — Exa-powered invest research (founders, traction, funding)
+- `build_research.md` — Exa-powered build research (CIS competitors, OSS, market)
+- `gate_invest.md` — invest gate evaluation (team/traction/competitive evidence check)
+- `gate_build.md` — build gate evaluation (CIS gap, replicability, market demand)
 - `profile.md` (future: full profile from TEMPLATE_profile.md)
 - `github_metrics.md` (future: GitHub API data)
 - `social_mentions.md` (future: HN/Reddit mentions)
@@ -74,6 +88,31 @@ clear_localization_path: bool  # Adaptable for CIS in <3 months
 analysis_ready: bool        # invest evidence >= 2/3 OR any rare build signal
 build_priority: string      # "high" (rare signal) / "medium" (no rare signal)
 ```
+
+### gate_invest.md contract
+```yaml
+# Invest evidence (from Exa-powered research)
+has_team_data: bool
+has_traction_data: bool
+has_competitive_context: bool
+# Decision
+invest_analysis_ready: bool
+```
+
+### gate_build.md contract
+```yaml
+# Build signals (from Exa-powered research)
+cis_gap_confirmed: bool
+replicable_confirmed: bool
+oss_base_available: bool
+market_demand_signals: bool
+clear_localization_path: bool
+# Decision
+build_analysis_ready: bool
+build_priority: string      # "high" (oss base available) / "medium" (no oss base)
+```
+
+**Note on analysis_ready:** Legacy field `analysis_ready` may exist from pre-dual-track runs. The dual-track pipeline uses `invest_analysis_ready` and `build_analysis_ready` instead.
 
 ## 3_analysis/{slug}_analysis.md
 
