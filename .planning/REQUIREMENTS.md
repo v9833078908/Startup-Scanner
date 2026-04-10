@@ -48,10 +48,11 @@
 
 ## Phase 2: Scout Framework + Simple Parsers
 
-### R9: BaseScout Framework
-- BaseScout class: fetch_url (retry 3, timeout 15s, random UA), save_idea (MD template), already_exists (dedup), abstract run()
-- Jaro-Winkler dedup: normalize_name (strip Inc/Ltd/AI/Labs/.io/.ai/.dev/.com), extract_domain, is_duplicate (domain OR fuzzy >0.85)
-- Built-in Jaro-Winkler implementation (no external library)
+### R9: BaseScout Framework + Core Data Layer
+- `core/idea_store.py` — единая точка записи/чтения/архивации идей (save, load, archive, list, exists). Все парсеры и pipeline-шаги работают с идеями только через idea_store
+- `core/dedup.py` — дедупликация как отдельный модуль: normalize_name (strip Inc/Ltd/AI/Labs/.io/.ai/.dev/.com), extract_domain, is_duplicate (domain OR fuzzy >0.85). Built-in Jaro-Winkler (no external library)
+- BaseScout class: fetch_url (retry 3, timeout 15s, random UA), save_idea (через core/idea_store), already_exists (через core/dedup), abstract run()
+- Ни один scout не работает с файловой системой напрямую — только через core/idea_store
 
 ### R10: GitHub Trending + HN Parsers
 - GitHub Trending: parse daily+weekly, filter (no tutorials/awesome-lists, stars_today >= 50, has description >20 chars, not fork)
@@ -83,17 +84,21 @@
 ## Phase 4: Research Enrichment
 
 ### R16: GitHub & Website Enrichment
+- `core/research_store.py` — создание папки в 2_research/, запись enrichment-файлов, чтение профиля. Все enrichment-скрипты пишут через research_store
 - enrich_github.py: stars, forks, issues, watchers, contributors, commits/30d, languages, topics, stars_per_day
 - enrich_website.py: main page + /about + /pricing + /features + /team, BS4 text extraction
 
 ### R17: Mentions & Research Workflow
 - enrich_mentions.py: HN Algolia API + Reddit search API
-- move_to_research.py: create 2_research/{slug}/, copy idea, create profile.md, run all enrichments
+- move_to_research.py: использует core/idea_store + core/research_store (не shutil/os напрямую)
 - --all-older-than N flag for batch processing
 
 ## Phase 5: Full Scoring & Reports
 
-### R18: Config-Driven Scoring Module
+### R18: Config-Driven Scoring Module + Analysis Store
+- `core/analysis_store.py` — запись/чтение scoring-файлов через единый интерфейс
+- Scoring weights загружаются только через core/ (не прямой yaml.load в скриптах)
+- Каждый analysis-файл содержит `prompt_version` и `model` в frontmatter (трассировка дрифта при смене модели/промпта)
 - Read weights from scoring_weights.yaml
 - Invest: 10 criteria + red flags (no_linkedin=-2, no_product=-2, fake_stars=-3) + green flags (yc=+2, prev_exit=+2, warm_intro=+2, multi_source=+1)
 - Build: 8 criteria, thresholds BUILD/PARTNER/MONITOR/SKIP
@@ -114,20 +119,24 @@
 
 ## Phase 6: Delivery & Automation
 
-### R22: Telegram Bot
+### R22: Telegram Bot (adapter pattern)
+- `core/digest_service.py` — генерация дайджеста как структура данных (dict/dataclass), не сразу в файл
+- `adapters/telegram_bot.py` — доставка через Telegram, вызывает core/digest_service
+- Адаптер не читает 1_ideas/, 2_research/, 3_analysis/ напрямую — только через core/
 - Commands: /status, /new, /top, /build, /digest
 - Auto-alerts on invest_score > 8
 - Config: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID in .env
 
-### R23: Email Delivery
-- Resend API integration
+### R23: Email Delivery (adapter pattern)
+- `adapters/email_adapter.py` — доставка через Resend API, вызывает core/digest_service
+- Адаптер не читает файлы напрямую — только через core/
 - Send MD digest as formatted email
 - Config: RESEND_API_KEY, recipient email in .env
 
 ### R24: Cron & Orchestration
+- `full_pipeline.py` — оркестратор вызывает core/ функции последовательно
 - run_all_scouts.sh: sequential run of all parsers, continue on error
 - status.py: pipeline state overview
-- full_pipeline.py: complete interactive cycle
 - Crontab instructions in README
 
 ## Phase 7: Advanced Features
