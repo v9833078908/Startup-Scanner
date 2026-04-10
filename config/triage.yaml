@@ -1,0 +1,35 @@
+# Invest triage: count binary yes signals
+invest_signals:
+  - has_product_evidence    # from LLM triage
+  - has_founder_signal      # from LLM triage
+  - sector_fit              # from prefilter: sector_match in (yes, partial)
+  - round_in_range          # mechanical: $30K-$2M
+
+# Priority from signal count
+invest_priority_thresholds:
+  high: 3    # 3-4 yes signals
+  medium: 2  # 2 yes signals
+  low: 0     # 0-1 yes signals — skip research
+
+# Build triage: type-level filter only (rare signals come at research gate)
+build_candidate_requires:
+  is_tech: true
+  product_type: ["software", "service"]
+  sector_match: ["yes", "partial"]
+
+# Research gate config
+research_gate:
+  # Invest: need at least 2 of 3 evidence types
+  invest_evidence_threshold: 2
+  invest_evidence_fields:
+    - has_team_data
+    - has_traction_data
+    - has_competitive_context
+
+  # Build: any 1 rare signal = build_priority high
+  build_rare_signals:
+    - ru_gap_detected
+    - oss_commercializable
+    - cross_sell_fit
+    - underserved_niche
+    - clear_localization_path
