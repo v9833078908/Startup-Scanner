@@ -12,11 +12,16 @@ load_dotenv()
 
 from lib.logger import setup_logging
 from lib.llm import get_llm_stats
+from lib.utils import load_idea, make_slug
 from scouts.dealpad_parser import parse_dealpad
 from pipeline.prefilter import run_prefilter
 from pipeline.triage import run_triage
-from pipeline.deep_research import run_deep_research
-from pipeline.research_gate import run_research_gate
+from pipeline.deep_research import run_deep_research  # legacy, kept for backward compat
+from pipeline.research_gate import run_research_gate  # legacy, kept for backward compat
+from pipeline.invest_research import run_invest_research
+from pipeline.build_research import run_build_research
+from pipeline.invest_gate import run_invest_gate
+from pipeline.build_gate import run_build_gate
 from pipeline.deep_analysis import run_deep_analysis
 from pipeline.digest_generator import run_digest
 
@@ -39,11 +44,17 @@ STRIP_FIELDS = [
     "invest_priority", "build_candidate",
     "has_product_evidence", "has_founder_signal",
     "barriers", "one_liner", "category",
-    # Research gate fields
+    # Triage build-track signals
+    "replicability", "cis_gap_likelihood", "stack_fit", "route",
+    # Research gate fields (legacy unified gate)
     "analysis_ready", "build_priority",
     "has_team_data", "has_traction_data", "has_competitive_context",
     "ru_gap_detected", "oss_commercializable", "cross_sell_fit",
     "underserved_niche", "clear_localization_path",
+    # Dual-track gate fields
+    "invest_analysis_ready", "build_analysis_ready",
+    "cis_gap_confirmed", "replicable_confirmed", "oss_base_available",
+    "market_demand_signals",
 ]
 
 
@@ -108,6 +119,29 @@ def do_reset() -> None:
     )
 
 
+def _derive_route(post) -> str:
+    """Derive route from idea frontmatter.
+
+    If 'route' field exists (set by triage with build signals), use it directly.
+    Otherwise fall back to invest_priority + build_candidate to compute route.
+    """
+    route = post.get("route")
+    if route in ("invest", "build", "both", "skip"):
+        return route
+    # Fallback: derive from invest_priority + build_candidate
+    ip = post.get("invest_priority", "low")
+    bc = post.get("build_candidate", False)
+    invest = ip in ("high", "medium")
+    build = bc is True
+    if invest and build:
+        return "both"
+    if invest:
+        return "invest"
+    if build:
+        return "build"
+    return "skip"
+
+
 async def main(html_path: str, reset: bool = False) -> None:
     setup_logging()
 
@@ -115,38 +149,71 @@ async def main(html_path: str, reset: bool = False) -> None:
         log.info("=== Resetting pipeline state ===")
         do_reset()
 
-    log.info("=== Startup Scouting Pipeline (7-stage funnel) ===")
+    log.info("=== Startup Scouting Pipeline (9-stage dual-track funnel) ===")
     log.info("Input: %s", html_path)
     total_start = time.monotonic()
 
-    # [1/7] Parse DealPad
-    log.info("[1/7] Parsing DealPad HTML export...")
+    # [1/9] Parse DealPad
+    log.info("[1/9] Parsing DealPad HTML export...")
     parsed_count = parse_dealpad(html_path)
 
-    # [2/7] Pre-filter (LLM classification)
-    log.info("[2/7] Applying pre-filter (LLM classification)...")
+    # [2/9] Pre-filter (LLM classification)
+    log.info("[2/9] Applying pre-filter (LLM classification)...")
     filter_result = await run_prefilter()
 
-    # [3/7] Triage (binary evidence signals)
-    log.info("[3/7] Triage (binary evidence signals)...")
+    # [3/9] Triage (binary evidence signals + route)
+    log.info("[3/9] Triage (binary evidence signals)...")
     triage_result = await run_triage()
 
-    # [4/7] Deep research (scrape shortlisted)
-    log.info("[4/7] Deep research on research candidates...")
-    research_list = triage_result.get("research_list")
-    research_result = await run_deep_research(shortlist=research_list)
+    # Split research list by route
+    research_list = triage_result.get("research_list", [])
+    route_dist = triage_result.get("route_distribution", {})
 
-    # [5/7] Research gate (analysis readiness check)
-    log.info("[5/7] Research gate (analysis readiness check)...")
-    gate_result = await run_research_gate()
+    # Build route-specific slug lists by scanning idea files
+    invest_slugs = []  # route == "invest" or "both"
+    build_slugs = []   # route == "build" or "both"
+    for idea_file in sorted(IDEAS_DIR.glob("*.md")):
+        post = load_idea(idea_file)
+        slug = make_slug(post.get("name", ""))
+        if slug not in research_list:
+            continue
+        route = _derive_route(post)
+        if route in ("invest", "both"):
+            invest_slugs.append(slug)
+        if route in ("build", "both"):
+            build_slugs.append(slug)
+        # Track route distribution if triage didn't provide it
+        if not route_dist:
+            route_dist[route] = route_dist.get(route, 0) + 1
 
-    # [6/7] Deep analysis (heavy model, only analysis_ready)
-    log.info("[6/7] Deep analysis via heavy model (analysis-ready only)...")
-    analysis_ready_slugs = gate_result.get("analysis_ready_slugs", [])
-    analysis_result = await run_deep_analysis(slugs=analysis_ready_slugs)
+    # [4/9] Invest research (Exa-powered, invest/both-routed only)
+    log.info("[4/9] Invest research (Exa-powered, %d startups)...", len(invest_slugs))
+    invest_research_result = await run_invest_research(invest_slugs)
 
-    # [7/7] Digest generation
-    log.info("[7/7] Generating weekly digest...")
+    # [5/9] Build research (Exa-powered, build/both-routed only)
+    log.info("[5/9] Build research (Exa-powered, %d startups)...", len(build_slugs))
+    build_research_result = await run_build_research(build_slugs)
+
+    # [6/9] Invest gate (analysis readiness for invest track)
+    log.info("[6/9] Invest gate (%d startups)...", len(invest_slugs))
+    invest_gate_result = await run_invest_gate(invest_slugs)
+
+    # [7/9] Build gate (analysis readiness for build track)
+    log.info("[7/9] Build gate (%d startups)...", len(build_slugs))
+    build_gate_result = await run_build_gate(build_slugs)
+
+    # [8/9] Deep analysis (merged analysis-ready from both gates)
+    invest_ready = invest_gate_result.get("invest_analysis_ready_slugs", [])
+    build_ready = build_gate_result.get("build_analysis_ready_slugs", [])
+    all_analysis_ready = list(dict.fromkeys(invest_ready + build_ready))  # dedupe, preserve order
+    log.info(
+        "[8/9] Deep analysis (%d startups from %d invest + %d build)...",
+        len(all_analysis_ready), len(invest_ready), len(build_ready),
+    )
+    analysis_result = await run_deep_analysis(slugs=all_analysis_ready)
+
+    # [9/9] Digest generation
+    log.info("[9/9] Generating weekly digest...")
     digest_result = await run_digest()
 
     # Final summary
@@ -166,13 +233,18 @@ async def main(html_path: str, reset: bool = False) -> None:
         triage_result.get("triaged", "?"),
         triage_result.get("research_count", "?"),
     )
-    log.info("  Researched: %s", research_result.get("researched", "?"))
     log.info(
-        "  Research gate: %s analysis-ready, %s filtered",
-        gate_result.get("ready", "?"),
-        gate_result.get("filtered", "?"),
+        "  Route: invest=%s, build=%s, both=%s, skip=%s",
+        route_dist.get("invest", "?"),
+        route_dist.get("build", "?"),
+        route_dist.get("both", "?"),
+        route_dist.get("skip", "?"),
     )
-    log.info("  Analyzed: %s", analysis_result.get("analyzed", "?"))
+    log.info("  Invest research: %s", invest_research_result.get("researched", "?"))
+    log.info("  Build research: %s", build_research_result.get("researched", "?"))
+    log.info("  Invest gate: %s ready", invest_gate_result.get("ready", "?"))
+    log.info("  Build gate: %s ready", build_gate_result.get("ready", "?"))
+    log.info("  Analysis: %s (merged)", analysis_result.get("analyzed", "?"))
     log.info("  Digest: %s", digest_result.get("digest_path", "?"))
     log.info("--- LLM Usage ---")
     log.info("  Calls: %d", stats["calls"])
@@ -184,7 +256,7 @@ async def main(html_path: str, reset: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run the startup scouting pipeline end-to-end (7-stage funnel)"
+        description="Run the startup scouting pipeline end-to-end (9-stage dual-track funnel)"
     )
     parser.add_argument(
         "--html",
