@@ -1,36 +1,4 @@
-# Niches to INCLUDE (pass if startup matches any)
-include_niches:
-  - AI
-  - ML
-  - machine learning
-  - fintech
-  - finance
-  - payments
-  - gamedev
-  - gaming
-  - developer tools
-  - devtools
-  - infrastructure
-  - automation
-  - SaaS
-  - B2B
-  - marketplace
-  - analytics
-  - data
-  - cybersecurity
-  - security
-  - cloud
-  - API
-  - platform
-  - robotics
-  - edtech
-  - healthtech
-  - legaltech
-  - logistics
-  - HR tech
-  - proptech
-
-# Niches to EXCLUDE (reject if matches)
+# Hard rejects (no LLM needed — always excluded)
 exclude_niches:
   - real estate development
   - oil
@@ -47,13 +15,15 @@ exclude_niches:
   - food & beverage
   - restaurant
 
-# Round size filter (null = no filter)
-min_round_usd: null        # no minimum
-max_round_usd: 500000000   # skip $500M+ mega-rounds (not startup territory)
+# Round size hard reject (not startup territory)
+max_round_usd: 500000000
 
-# Anti-spam: skip if description is too short
+# Anti-spam
 min_description_length: 20
 
 # Date range (null = no filter)
 date_from: null
 date_to: null
+
+# NOTE: include_niches REMOVED — replaced by LLM classification in prefilter
+# NOTE: invest_round_min/max REMOVED — round is a scoring factor, not an eligibility gate
