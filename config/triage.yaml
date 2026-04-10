@@ -42,3 +42,12 @@ research_gate:
     - cross_sell_fit
     - underserved_niche
     - clear_localization_path
+
+# Build gate config (Exa-powered dual gate)
+build_gate:
+  # Build-ready if CIS gap confirmed OR (replicable + market demand)
+  ready_requires_any:
+    - cis_gap_confirmed
+  ready_requires_all:
+    - replicable_confirmed
+    - market_demand_signals
