@@ -11,11 +11,20 @@ invest_priority_thresholds:
   medium: 2  # 2 yes signals
   low: 0     # 0-1 yes signals — skip research
 
-# Build triage: type-level filter only (rare signals come at research gate)
+# Build triage: tighter filter requiring replicability + stack_fit
 build_candidate_requires:
   is_tech: true
   product_type: ["software", "service"]
   sector_match: ["yes", "partial"]
+  replicability: ["easy", "medium"]
+  stack_fit: true
+
+# Route computation rules (used by triage.py compute_route)
+route_rules:
+  # invest: invest_priority high/medium AND NOT build_candidate
+  # build: build_candidate AND invest_priority low
+  # both: invest_priority high/medium AND build_candidate
+  # skip: invest_priority low AND NOT build_candidate
 
 # Research gate config
 research_gate:
