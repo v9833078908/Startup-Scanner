@@ -26,6 +26,13 @@ Automation collects and analyzes. Humans make decisions. Especially: moving from
 ### Delay Is a Feature
 The pause between Ideas and Research filters hype. After a week, the real signal becomes visible. Don't auto-promote ideas.
 
+### Final File Contracts from Day 1
+Every phase — even the MVP with a single source — must use the target file schemas (SCHEMA.md). No temporary formats that need migration later. A vertical slice through the pipeline in the final contracts is better than a wide slice in throwaway formats.
+
+### THESIS.md + SCHEMA.md as Top-Level Docs
+- `THESIS.md` fixes the investment thesis and focus areas as a standalone reference
+- `SCHEMA.md` defines the YAML frontmatter contracts for ideas, research profiles, and analysis files
+
 ## Core Rules
 
 1. **All parsers at once, not in phases.** 15 parsers in 2 days. Breadth of coverage from day one is fundamental. 15 simple parsers > 3 perfect ones.
