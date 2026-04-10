@@ -1,31 +1,75 @@
 # Formula weights for computing invest_score and build_score
 # Each factor maps answer values to integer points
 # Final score = sum of all factor points (clamped to 0-10)
+#
+# NOTE: All string keys are quoted to prevent YAML 1.1 boolean coercion
+# (bare 'yes'/'no' would be parsed as True/False in PyYAML)
 
 invest_formula:
   # From pre-filter classification
-  sector_match:     {yes: 2, partial: 1, no: 0}
+  sector_match:
+    "yes": 2
+    "partial": 1
+    "no": 0
   # Mechanical: computed from round_usd vs iFree check size ($30K-$300K)
   # NOTE: this is a scoring factor, NOT an eligibility gate
   # $30K-$300K = ideal fit, $300K-$2M = close enough, $2M+ or tiny = weak signal
-  round_fit:        {in_range: 2, close: 1, far: 0}
+  round_fit:
+    "in_range": 2
+    "close": 1
+    "far": 0
   # From LLM quick score
-  has_product:      {working: 2, landing: 1, idea: 0, unknown: 0}
-  founder_signal:   {strong: 2, some: 1, none: 0, unknown: 0}
-  uniqueness:       {novel: 1, incremental: 0, crowded: -1}
-  market_potential: {large: 1, medium: 0, niche: 0}
+  has_product:
+    "working": 2
+    "landing": 1
+    "idea": 0
+    "unknown": 0
+  founder_signal:
+    "strong": 2
+    "some": 1
+    "none": 0
+    "unknown": 0
+  uniqueness:
+    "novel": 1
+    "incremental": 0
+    "crowded": -1
+  market_potential:
+    "large": 1
+    "medium": 0
+    "niche": 0
   # max = 10, min = -1 (clamped to 0)
 
 build_formula:
   # From pre-filter classification
-  sector_match:      {yes: 2, partial: 1, no: 0}
+  sector_match:
+    "yes": 2
+    "partial": 1
+    "no": 0
   # From pre-filter classification
-  product_type:      {software: 2, service: 1, hardware: 0, biotech: 0, other: 0}
-  b2b_b2c:           {b2b: 1, both: 1, b2c: 0, unknown: 0}
+  product_type:
+    "software": 2
+    "service": 1
+    "hardware": 0
+    "biotech": 0
+    "other": 0
+  b2b_b2c:
+    "b2b": 1
+    "both": 1
+    "b2c": 0
+    "unknown": 0
   # From LLM quick score
-  cis_transferable:  {high: 3, medium: 1, low: 0}
-  uniqueness:        {novel: 1, incremental: 0, crowded: -1}
-  market_potential:  {large: 1, medium: 0, niche: 0}
+  cis_transferable:
+    "high": 3
+    "medium": 1
+    "low": 0
+  uniqueness:
+    "novel": 1
+    "incremental": 0
+    "crowded": -1
+  market_potential:
+    "large": 1
+    "medium": 0
+    "niche": 0
   # max = 10, min = -1 (clamped to 0)
 
 # Shortlist thresholds (all consumers MUST read from here)
