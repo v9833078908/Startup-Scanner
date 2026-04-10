@@ -8,7 +8,7 @@ import frontmatter
 import yaml
 
 from lib.llm import call_llm, load_prompt
-from lib.utils import load_idea, save_idea
+from lib.utils import load_idea, save_idea, make_slug
 
 log = logging.getLogger("pipeline.triage")
 
@@ -184,7 +184,7 @@ async def run_triage() -> dict:
 
         # Research list: anything worth investigating further
         if invest_priority != "low" or build_candidate:
-            slug = file_path.stem
+            slug = make_slug(post.get("name", file_path.stem))
             research_list.append(slug)
 
     # Also include previously triaged ideas in research list
@@ -192,12 +192,13 @@ async def run_triage() -> dict:
         post = load_idea(file_path)
         if post.get("filtered") != "passed":
             continue
-        if file_path.stem in research_list:
+        slug = make_slug(post.get("name", file_path.stem))
+        if slug in research_list:
             continue
         ip = post.get("invest_priority")
         bc = post.get("build_candidate")
         if (ip and ip != "low") or bc:
-            research_list.append(file_path.stem)
+            research_list.append(slug)
 
     print(
         f"Triage: {triaged_count} triaged, {failed_count} failed, {skipped} skipped\n"
