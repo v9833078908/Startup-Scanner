@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories (tracked separately or too large)
+1_ideas/
+2_research/
+3_analysis/
+_archive/
+digests/
+
+# Telethon sessions
+*.session
+*.session-journal
+
+# Cache
+config/.hn_seen
+config/.telegram_state.json
