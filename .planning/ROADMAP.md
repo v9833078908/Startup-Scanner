@@ -119,3 +119,15 @@ Plans:
   - [ ] Demo script creates fake startup through full pipeline
   - [ ] README with quickstart, parser docs, cron setup, FAQ
 - **Plans:** 0/0
+
+### Phase 8: Invest/Build Track Split — triage routing, dual research, dual gates
+
+**Goal:** Split unified pipeline into dual invest/build tracks with Exa-powered research, track-specific gates, and route-based triage to cut token waste and improve research quality
+**Requirements:** R5, R6, R8
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Extend triage with build signals (replicability, stack_fit) and route computation
+- [ ] 08-02-PLAN.md — Exa client, dual research modules, and dual gate modules
+- [ ] 08-03-PLAN.md — Pipeline orchestrator dual-track fork and schema updates
