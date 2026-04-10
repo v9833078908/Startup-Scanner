@@ -1,22 +1,39 @@
 import asyncio
 import datetime
 import json
+import logging
 import os
+import time
 from pathlib import Path
 
 import frontmatter
+import yaml
 
 from lib.llm import call_llm, load_prompt
 from lib.utils import load_idea, make_slug
+
+log = logging.getLogger("pipeline.digest")
 
 IDEAS_DIR = Path("1_ideas")
 ANALYSIS_DIR = Path("3_analysis")
 ARCHIVE_DIR = Path("_archive")
 DIGESTS_DIR = Path("digests")
+FORMULA_PATH = Path("config/scoring_formula.yaml")
+
+
+def load_shortlist_thresholds() -> tuple[int, int]:
+    """Load invest_threshold and build_threshold from config/scoring_formula.yaml."""
+    formula = yaml.safe_load(FORMULA_PATH.read_text(encoding="utf-8"))
+    return (
+        formula["shortlist"]["invest_threshold"],
+        formula["shortlist"]["build_threshold"],
+    )
 
 
 def collect_pipeline_stats() -> dict:
     """Count items at each pipeline stage."""
+    invest_threshold, build_threshold = load_shortlist_thresholds()
+
     total = len(list(IDEAS_DIR.glob("*.md")))
     archived = len(list(ARCHIVE_DIR.glob("*.md")))
 
@@ -29,7 +46,7 @@ def collect_pipeline_stats() -> dict:
                 scored += 1
                 invest = post.get("invest_score", 0) or 0
                 build = post.get("build_score", 0) or 0
-                if invest >= 6 or build >= 6:
+                if invest >= invest_threshold or build >= build_threshold:
                     shortlisted += 1
         except Exception:
             continue
@@ -116,6 +133,7 @@ def _extract_section(content: str, header: str) -> str:
 def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
     """FALLBACK: Build digest without LLM using string formatting."""
     today = datetime.date.today().isoformat()
+    invest_threshold, build_threshold = load_shortlist_thresholds()
 
     invest_candidates = [a for a in analyses if a["invest_verdict"] == "INVEST"]
     watch_list = [a for a in analyses if a["invest_verdict"] == "WATCH"]
@@ -140,7 +158,7 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
 
     # INVEST Candidates section
     lines += [
-        "## INVEST Candidates (score >= 8)",
+        f"## INVEST Candidates (invest_score >= {invest_threshold})",
         "",
     ]
     if invest_candidates:
@@ -192,7 +210,7 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
 
     # BUILD Opportunities section
     lines += [
-        "## BUILD Opportunities (build_score >= 6)",
+        f"## BUILD Opportunities (build_score >= {build_threshold})",
         "",
     ]
     if build_opps:
@@ -268,7 +286,7 @@ async def generate_digest_with_llm(data_json: str) -> str:
             if isinstance(result, str):
                 return result
         except Exception as e:
-            print(f"  LLM digest generation failed: {e}. Falling back to manual template.")
+            log.warning("LLM digest generation failed: %s — falling back to manual template", e)
 
     return ""
 
@@ -281,7 +299,7 @@ async def run_digest() -> dict:
     analyses = collect_analyses()
 
     if not analyses:
-        print("  Warning: no analysis files found in 3_analysis/ — generating minimal digest")
+        log.warning("no analysis files found in 3_analysis/ — generating minimal digest")
 
     # Try LLM generation first
     digest_md = ""
@@ -300,7 +318,7 @@ async def run_digest() -> dict:
     output_path = DIGESTS_DIR / filename
 
     output_path.write_text(digest_md, encoding="utf-8")
-    print(f"Digest saved to {output_path}")
+    log.info("Digest saved to %s", output_path)
 
     return {
         "digest_path": str(output_path),

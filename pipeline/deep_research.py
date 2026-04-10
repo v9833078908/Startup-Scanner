@@ -1,16 +1,22 @@
 import asyncio
+import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
 import frontmatter
+import yaml
 
 from lib.llm import call_llm
 from lib.scraper import scrape_website
 from lib.utils import make_slug, load_idea
 
+log = logging.getLogger("pipeline.deep_research")
+
 IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
+FORMULA_PATH = Path("config/scoring_formula.yaml")
 
 
 async def research_one(post: frontmatter.Post, slug: str) -> dict:
@@ -92,14 +98,19 @@ async def run_deep_research(shortlist: list[str] | None = None) -> dict:
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
 
     if shortlist is None:
-        # Scan IDEAS_DIR for shortlisted startups (invest_score >= 6 OR build_score >= 6)
+        # Read shortlist thresholds from config — not hardcoded
+        formula = yaml.safe_load(FORMULA_PATH.open())
+        invest_threshold = formula["shortlist"]["invest_threshold"]
+        build_threshold = formula["shortlist"]["build_threshold"]
+
+        # Scan IDEAS_DIR for shortlisted startups
         candidates = []
         for idea_file in sorted(IDEAS_DIR.glob("*.md")):
             try:
                 post = load_idea(idea_file)
                 invest_score = post.get("invest_score", 0) or 0
                 build_score = post.get("build_score", 0) or 0
-                if invest_score >= 6 or build_score >= 6:
+                if invest_score >= invest_threshold or build_score >= build_threshold:
                     slug = make_slug(post.get("name", idea_file.stem))
                     candidates.append((post, slug))
             except Exception:
@@ -130,11 +141,12 @@ async def run_deep_research(shortlist: list[str] | None = None) -> dict:
         research_tasks.append(research_one(post, slug))
         slugs.append(slug)
 
-    print(
-        f"Researching {len(research_tasks)} startups "
-        f"(skipping {skipped} already researched)..."
+    log.info(
+        "Researching %d startups (skipping %d already researched)",
+        len(research_tasks), skipped,
     )
 
+    t0 = time.monotonic()
     results = await asyncio.gather(*research_tasks, return_exceptions=True)
 
     success_count = sum(1 for r in results if not isinstance(r, Exception))
@@ -142,9 +154,13 @@ async def run_deep_research(shortlist: list[str] | None = None) -> dict:
 
     for r in results:
         if isinstance(r, Exception):
-            print(f"  ERROR: {r}")
+            log.error("research failed: %s", r)
 
-    print(f"Research complete: {success_count} succeeded, {fail_count} failed")
+    elapsed = time.monotonic() - t0
+    log.info(
+        "=== deep_research done in %.1fs — succeeded=%d failed=%d ===",
+        elapsed, success_count, fail_count,
+    )
 
     return {"researched": success_count, "failed": fail_count, "slugs": slugs}
 
