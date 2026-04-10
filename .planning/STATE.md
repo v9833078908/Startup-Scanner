@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "### Phase 1: MVP — DealPad Pipeline End-to-End"
 status: executing
-last_updated: "2026-04-10T09:25:33.394Z"
+last_updated: "2026-04-10T09:29:35.295Z"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # State — Startup Scouting Pipeline
@@ -17,7 +17,7 @@ progress:
 ## Current Position
 
 Phase: 1 (MVP — DealPad Pipeline End-to-End) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 
 - **Milestone:** 1 — Scouting Pipeline v1.0
 - **Phase:** 1 — MVP DealPad Pipeline End-to-End
@@ -48,3 +48,5 @@ Plan: 4 of 5
 - [Phase 01]: matches_niches uses word-boundary regex not simple substring — prevents AI matching railway/wait/detail (Pitfall 5)
 - [Phase 01]: score_one_idea returns None on validation failure — lets asyncio.gather collect all results cleanly
 - [Phase 01]: Shortlist re-scans all 1_ideas/ after writing rather than accumulating in-memory — handles idempotent re-runs where some ideas were pre-scored
+- [Phase 01]: compute_weighted_score accepts both plain numeric scores and {score, rationale} dicts
+- [Phase 01]: determine_verdict sorts thresholds dict descending by value — config-driven, not hardcoded

@@ -15,22 +15,24 @@
   - [ ] `3_analysis/` has scoring files with invest + build verdicts
   - [ ] `digests/` contains a complete weekly report with all sections
   - [ ] Digest makes sense on manual review
-- **Plans:** 3/5 plans executed
+- **Plans:** 4/5 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Project setup, config files, shared libraries, and LLM prompts
 - [x] 01-02-PLAN.md — DealPad HTML parser and pre-filter
 - [x] 01-03-PLAN.md — LLM quick scoring module
-- [ ] 01-04-PLAN.md — Deep research and deep analysis
+- [x] 01-04-PLAN.md — Deep research and deep analysis
 - [ ] 01-05-PLAN.md — Digest generator and pipeline orchestrator
 
 ### Phase 2: Scout Framework + Simple Parsers
-- **Goal:** Reusable scout architecture + 6 new parsers for broad source coverage via simple APIs
+- **Goal:** Reusable scout architecture + core data layer + 6 new parsers for broad source coverage via simple APIs
 - **Requirements:** R9, R10, R11, R12
 - **Depends on:** Phase 1
 - **Success Criteria:**
-  - [ ] BaseScout class with fetch_url, save_idea, already_exists methods
-  - [ ] Jaro-Winkler dedup (>0.85 threshold) catches cross-source duplicates
+  - [ ] `core/idea_store.py` — единая точка записи/чтения/архивации идей (save, load, archive, list, exists)
+  - [ ] `core/dedup.py` — дедупликация как отдельный модуль (Jaro-Winkler >0.85, normalize_name, domain match)
+  - [ ] BaseScout class with fetch_url, save_idea, already_exists — все через core/idea_store
+  - [ ] Ни один scout не работает с файловой системой напрямую — только через core/idea_store
   - [ ] DealPad parser refactored to inherit BaseScout
   - [ ] GitHub Trending parser produces ideas from daily+weekly trending
   - [ ] Hacker News parser captures Show HN / Launch HN with score > 50
@@ -58,23 +60,27 @@ Plans:
 - **Plans:** 0/0
 
 ### Phase 4: Research Enrichment Pipeline
-- **Goal:** Automated structured data collection for shortlisted startups
+- **Goal:** Automated structured data collection for shortlisted startups via core store layer
 - **Requirements:** R16, R17
 - **Depends on:** Phase 2
 - **Success Criteria:**
+  - [ ] `core/research_store.py` — создание папки, запись enrichment-файлов, чтение профиля
   - [ ] enrich_github.py collects: stars, forks, issues, contributors, commits/30d, stars_per_day
   - [ ] enrich_website.py extracts text from main page, /about, /pricing, /team
   - [ ] enrich_mentions.py finds mentions on HN (Algolia API) and Reddit
-  - [ ] move_to_research.py creates structured folder in 2_research/ and runs all enrichments
+  - [ ] move_to_research.py использует core/idea_store + core/research_store (не shutil напрямую)
   - [ ] `--all-older-than 7` flag moves all ideas older than N days
   - [ ] Research folders contain: profile.md, github_metrics.md, website_content.md, social_mentions.md
 - **Plans:** 0/0
 
 ### Phase 5: Full Scoring & Report Suite
-- **Goal:** Complete analysis system with all 4 report types from Vision
+- **Goal:** Complete analysis system with all 4 report types, analysis store layer, prompt versioning
 - **Requirements:** R18, R19, R20, R21
 - **Depends on:** Phase 4
 - **Success Criteria:**
+  - [ ] `core/analysis_store.py` — запись/чтение scoring-файлов через единый интерфейс
+  - [ ] Scoring weights загружаются только через core/ (не прямой yaml.load в скриптах)
+  - [ ] Каждый analysis-файл содержит `prompt_version` и `model` в frontmatter (трассировка дрифта)
   - [ ] Scoring module reads weights from config/scoring_weights.yaml
   - [ ] Invest scoring: 10 criteria + red/green flags, returns INVEST/WATCH/PASS
   - [ ] Build scoring: 8 criteria, returns BUILD/PARTNER/MONITOR/SKIP
@@ -85,16 +91,19 @@ Plans:
 - **Plans:** 0/0
 
 ### Phase 6: Delivery & Automation
-- **Goal:** System runs autonomously and delivers results to team
+- **Goal:** System runs autonomously; delivery через adapter pattern, не напрямую в файлы
 - **Requirements:** R22, R23, R24
 - **Depends on:** Phase 5
 - **Success Criteria:**
+  - [ ] `core/digest_service.py` — генерация дайджеста как структура данных (dict/dataclass), не сразу в файл
+  - [ ] `adapters/telegram_bot.py` — доставка через Telegram, вызывает core/digest_service
+  - [ ] `adapters/email_adapter.py` — доставка через Resend API, вызывает core/digest_service
+  - [ ] Адаптеры не читают 1_ideas/, 2_research/, 3_analysis/ напрямую — только через core/
   - [ ] Telegram bot responds to /status, /new, /top, /build, /digest
   - [ ] Auto-alert when invest_score > 8 detected
-  - [ ] Email delivery via Resend API works
   - [ ] Cron: parsers 3x/day, daily digest every morning, weekly report on Mondays
+  - [ ] `full_pipeline.py` — оркестратор вызывает core/ функции последовательно
   - [ ] status.py shows pipeline state (ideas/research/analysis/archive counts)
-  - [ ] full_pipeline.py runs complete cycle with interactive research selection
 - **Plans:** 0/0
 
 ### Phase 7: Advanced Features & Polish
