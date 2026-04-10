@@ -15,7 +15,14 @@
   - [ ] `3_analysis/` has scoring files with invest + build verdicts
   - [ ] `digests/` contains a complete weekly report with all sections
   - [ ] Digest makes sense on manual review
-- **Plans:** 0/0
+- **Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Project setup, config files, shared libraries, and LLM prompts
+- [ ] 01-02-PLAN.md — DealPad HTML parser and pre-filter
+- [ ] 01-03-PLAN.md — LLM quick scoring module
+- [ ] 01-04-PLAN.md — Deep research and deep analysis
+- [ ] 01-05-PLAN.md — Digest generator and pipeline orchestrator
 
 ### Phase 2: Scout Framework + Simple Parsers
 - **Goal:** Reusable scout architecture + 6 new parsers for broad source coverage via simple APIs
