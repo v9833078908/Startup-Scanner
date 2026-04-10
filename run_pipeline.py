@@ -14,8 +14,9 @@ from lib.logger import setup_logging
 from lib.llm import get_llm_stats
 from scouts.dealpad_parser import parse_dealpad
 from pipeline.prefilter import run_prefilter
-from pipeline.quick_score import run_quick_score
+from pipeline.triage import run_triage
 from pipeline.deep_research import run_deep_research
+from pipeline.research_gate import run_research_gate
 from pipeline.deep_analysis import run_deep_analysis
 from pipeline.digest_generator import run_digest
 
@@ -27,16 +28,22 @@ RESEARCH_DIR = Path("2_research")
 ANALYSIS_DIR = Path("3_analysis")
 DIGESTS_DIR = Path("digests")
 
-# All scoring/classification fields written by prefilter and quick_score
+# All classification/triage/gate fields written by pipeline stages
 STRIP_FIELDS = [
+    # Pre-filter fields
     "filtered", "filter_reason",
     "invest_eligible", "build_eligible",
     "is_tech", "sector", "sector_match", "product_type", "b2b_b2c",
     "classification_status", "review_needed",
-    "invest_score", "build_score",
-    "has_product_signal", "founder_signal",
-    "cis_transferable", "uniqueness", "market_potential", "round_fit",
-    "category", "one_liner", "invest_rationale", "build_rationale",
+    # Triage fields
+    "invest_priority", "build_candidate",
+    "has_product_evidence", "has_founder_signal",
+    "barriers", "one_liner", "category",
+    # Research gate fields
+    "analysis_ready", "build_priority",
+    "has_team_data", "has_traction_data", "has_competitive_context",
+    "ru_gap_detected", "oss_commercializable", "cross_sell_fit",
+    "underserved_niche", "clear_localization_path",
 ]
 
 
@@ -44,12 +51,11 @@ def do_reset() -> None:
     """
     Reset full pipeline state for a clean re-run:
       a. Move all _archive/*.md back to 1_ideas/
-      b. Delete all files/dirs in 2_research/
+      b. Delete all files/dirs in 2_research/ (including gate.md)
       c. Delete all .md files in 3_analysis/
       d. Delete all .md files in digests/
-      e. Strip all scoring/classification fields from 1_ideas/*.md frontmatter
+      e. Strip all classification/triage/gate fields from 1_ideas/*.md frontmatter
     """
-    import frontmatter as fm
     from lib.utils import load_idea, save_idea
 
     IDEAS_DIR.mkdir(parents=True, exist_ok=True)
@@ -62,7 +68,7 @@ def do_reset() -> None:
             shutil.move(str(archived_file), str(dest))
             restored += 1
 
-    # b. Clear 2_research/ (subdirs per startup)
+    # b. Clear 2_research/ (subdirs per startup, includes gate.md)
     if RESEARCH_DIR.exists():
         for item in RESEARCH_DIR.iterdir():
             if item.is_dir():
@@ -80,7 +86,7 @@ def do_reset() -> None:
         for f in DIGESTS_DIR.glob("*.md"):
             f.unlink()
 
-    # e. Strip scoring/classification fields from all idea files
+    # e. Strip classification/triage/gate fields from all idea files
     cleaned = 0
     for idea_file in sorted(IDEAS_DIR.glob("*.md")):
         try:
@@ -109,32 +115,38 @@ async def main(html_path: str, reset: bool = False) -> None:
         log.info("=== Resetting pipeline state ===")
         do_reset()
 
-    log.info("=== Startup Scouting Pipeline ===")
+    log.info("=== Startup Scouting Pipeline (7-stage funnel) ===")
     log.info("Input: %s", html_path)
     total_start = time.monotonic()
 
-    # Step 1: Parse DealPad
-    log.info("[1/6] Parsing DealPad HTML export...")
+    # [1/7] Parse DealPad
+    log.info("[1/7] Parsing DealPad HTML export...")
     parsed_count = parse_dealpad(html_path)
 
-    # Step 2: Pre-filter (async — LLM classification)
-    log.info("[2/6] Applying pre-filter (LLM classification)...")
+    # [2/7] Pre-filter (LLM classification)
+    log.info("[2/7] Applying pre-filter (LLM classification)...")
     filter_result = await run_prefilter()
 
-    # Step 3: Quick Score
-    log.info("[3/6] Quick scoring via LLM...")
-    score_result = await run_quick_score()
+    # [3/7] Triage (binary evidence signals)
+    log.info("[3/7] Triage (binary evidence signals)...")
+    triage_result = await run_triage()
 
-    # Step 4: Deep Research
-    log.info("[4/6] Deep research on shortlisted startups...")
-    research_result = await run_deep_research()
+    # [4/7] Deep research (scrape shortlisted)
+    log.info("[4/7] Deep research on research candidates...")
+    research_list = triage_result.get("research_list")
+    research_result = await run_deep_research(shortlist=research_list)
 
-    # Step 5: Deep Analysis
-    log.info("[5/6] Deep analysis via LLM...")
-    analysis_result = await run_deep_analysis()
+    # [5/7] Research gate (analysis readiness check)
+    log.info("[5/7] Research gate (analysis readiness check)...")
+    gate_result = await run_research_gate()
 
-    # Step 6: Digest
-    log.info("[6/6] Generating weekly digest...")
+    # [6/7] Deep analysis (heavy model, only analysis_ready)
+    log.info("[6/7] Deep analysis via heavy model (analysis-ready only)...")
+    analysis_ready_slugs = gate_result.get("analysis_ready_slugs", [])
+    analysis_result = await run_deep_analysis(slugs=analysis_ready_slugs)
+
+    # [7/7] Digest generation
+    log.info("[7/7] Generating weekly digest...")
     digest_result = await run_digest()
 
     # Final summary
@@ -145,16 +157,21 @@ async def main(html_path: str, reset: bool = False) -> None:
     log.info("Pipeline complete in %.1fs", total_time)
     log.info("  Parsed: %d ideas", parsed_count)
     log.info(
-        "  Pre-filter: %s invest-eligible, %s build-eligible, %s hard-rejected",
-        filter_result.get("invest_eligible", "?"),
-        filter_result.get("build_eligible", "?"),
+        "  Pre-filter: %s passed, %s hard-rejected",
+        filter_result.get("passed", "?"),
         filter_result.get("hard_rejected", "?"),
     )
     log.info(
-        "  Scored: %s, Shortlisted: %s",
-        score_result.get("scored", "?"), score_result.get("shortlist_count", "?"),
+        "  Triage: %s triaged, research candidates: %s",
+        triage_result.get("triaged", "?"),
+        triage_result.get("research_count", "?"),
     )
     log.info("  Researched: %s", research_result.get("researched", "?"))
+    log.info(
+        "  Research gate: %s analysis-ready, %s filtered",
+        gate_result.get("ready", "?"),
+        gate_result.get("filtered", "?"),
+    )
     log.info("  Analyzed: %s", analysis_result.get("analyzed", "?"))
     log.info("  Digest: %s", digest_result.get("digest_path", "?"))
     log.info("--- LLM Usage ---")
@@ -167,7 +184,7 @@ async def main(html_path: str, reset: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run the startup scouting pipeline end-to-end"
+        description="Run the startup scouting pipeline end-to-end (7-stage funnel)"
     )
     parser.add_argument(
         "--html",
@@ -179,7 +196,7 @@ if __name__ == "__main__":
         action="store_true",
         help=(
             "Reset full pipeline state before running: restore archived ideas, "
-            "clear 2_research/, 3_analysis/, digests/, strip all scoring fields"
+            "clear 2_research/, 3_analysis/, digests/, strip all triage/gate fields"
         ),
     )
     args = parser.parse_args()

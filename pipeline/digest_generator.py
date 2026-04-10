@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 import frontmatter
-import yaml
 
 from lib.llm import call_llm, load_prompt
 from lib.utils import load_idea, make_slug
@@ -18,46 +17,48 @@ IDEAS_DIR = Path("1_ideas")
 ANALYSIS_DIR = Path("3_analysis")
 ARCHIVE_DIR = Path("_archive")
 DIGESTS_DIR = Path("digests")
-FORMULA_PATH = Path("config/scoring_formula.yaml")
-
-
-def load_shortlist_thresholds() -> tuple[int, int]:
-    """Load invest_threshold and build_threshold from config/scoring_formula.yaml."""
-    formula = yaml.safe_load(FORMULA_PATH.read_text(encoding="utf-8"))
-    return (
-        formula["shortlist"]["invest_threshold"],
-        formula["shortlist"]["build_threshold"],
-    )
+RESEARCH_DIR = Path("2_research")
 
 
 def collect_pipeline_stats() -> dict:
-    """Count items at each pipeline stage."""
-    invest_threshold, build_threshold = load_shortlist_thresholds()
-
+    """Count items at each pipeline stage using triage fields."""
     total = len(list(IDEAS_DIR.glob("*.md")))
-    archived = len(list(ARCHIVE_DIR.glob("*.md")))
+    archived = len(list(ARCHIVE_DIR.glob("*.md"))) if ARCHIVE_DIR.exists() else 0
 
-    scored = 0
-    shortlisted = 0
+    triaged = 0
+    priority_dist = {"high": 0, "medium": 0, "low": 0}
+    build_candidates = 0
+    research_candidates = 0
+
     for idea_file in IDEAS_DIR.glob("*.md"):
         try:
             post = load_idea(idea_file)
-            if "invest_score" in post.metadata:
-                scored += 1
-                invest = post.get("invest_score", 0) or 0
-                build = post.get("build_score", 0) or 0
-                if invest >= invest_threshold or build >= build_threshold:
-                    shortlisted += 1
+            if "invest_priority" in post.metadata:
+                triaged += 1
+                priority = post.get("invest_priority", "low")
+                priority_dist[priority] = priority_dist.get(priority, 0) + 1
+                if post.get("build_candidate"):
+                    build_candidates += 1
+                if priority in ("high", "medium") or post.get("build_candidate"):
+                    research_candidates += 1
         except Exception:
             continue
 
-    analyzed = len(list(ANALYSIS_DIR.glob("*_analysis.md")))
+    researched = len([
+        d for d in RESEARCH_DIR.iterdir()
+        if d.is_dir() and (d / "web_research.md").exists()
+    ]) if RESEARCH_DIR.exists() else 0
+
+    analyzed = len(list(ANALYSIS_DIR.glob("*_analysis.md"))) if ANALYSIS_DIR.exists() else 0
 
     return {
         "total": total,
         "archived": archived,
-        "scored": scored,
-        "shortlisted": shortlisted,
+        "triaged": triaged,
+        "priority_distribution": priority_dist,
+        "build_candidates": build_candidates,
+        "research_candidates": research_candidates,
+        "researched": researched,
         "analyzed": analyzed,
     }
 
@@ -133,13 +134,14 @@ def _extract_section(content: str, header: str) -> str:
 def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
     """FALLBACK: Build digest without LLM using string formatting."""
     today = datetime.date.today().isoformat()
-    invest_threshold, build_threshold = load_shortlist_thresholds()
 
     invest_candidates = [a for a in analyses if a["invest_verdict"] == "INVEST"]
     watch_list = [a for a in analyses if a["invest_verdict"] == "WATCH"]
     build_opps = [
         a for a in analyses if a["build_verdict"] in ("BUILD", "PARTNER")
     ]
+
+    priority_dist = stats.get("priority_distribution", {})
 
     # Pipeline Summary section
     lines = [
@@ -150,15 +152,20 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
         f"- **Parsed:** {stats['total']} startups from DealPad",
         f"- **After pre-filter:** {stats['total'] - stats['archived']} relevant"
         f" ({stats['archived']} archived)",
-        f"- **Quick-scored:** {stats['scored']}",
-        f"- **Shortlisted:** {stats['shortlisted']} for deep research",
+        f"- **Triaged:** {stats.get('triaged', 0)}"
+        f" (high={priority_dist.get('high', 0)},"
+        f" medium={priority_dist.get('medium', 0)},"
+        f" low={priority_dist.get('low', 0)})",
+        f"- **Build candidates:** {stats.get('build_candidates', 0)}",
+        f"- **Research candidates:** {stats.get('research_candidates', 0)}",
+        f"- **Researched:** {stats.get('researched', 0)}",
         f"- **Fully analyzed:** {stats['analyzed']}",
         "",
     ]
 
-    # INVEST Candidates section
+    # INVEST Candidates section (from deep analysis scores)
     lines += [
-        f"## INVEST Candidates (invest_score >= {invest_threshold})",
+        "## INVEST Candidates (invest_score >= 8)",
         "",
     ]
     if invest_candidates:
@@ -205,12 +212,12 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
                 f" | {round_col} | {one_liner} |"
             )
     else:
-        lines.append("| (none this week) | — | — | — | — |")
+        lines.append("| (none this week) | -- | -- | -- | -- |")
     lines.append("")
 
-    # BUILD Opportunities section
+    # BUILD Opportunities section (from deep analysis scores)
     lines += [
-        f"## BUILD Opportunities (build_score >= {build_threshold})",
+        "## BUILD Opportunities (build_score >= 8)",
         "",
     ]
     if build_opps:
@@ -239,9 +246,9 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
         lines.append("- No analysis data available yet.")
     lines.append("")
 
-    # All Scored Startups table
+    # All Analyzed Startups table
     lines += [
-        "## All Scored Startups",
+        "## All Analyzed Startups",
         "",
         "| Name | Invest | Build | Category | Round | Invest Verdict | Build Verdict |",
         "|------|--------|-------|----------|-------|----------------|---------------|",
@@ -257,7 +264,7 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
                 f" | {a['invest_verdict']} | {a['build_verdict']} |"
             )
     else:
-        lines.append("| (no analyzed startups yet) | — | — | — | — | — | — |")
+        lines.append("| (no analyzed startups yet) | -- | -- | -- | -- | -- | -- |")
     lines.append("")
 
     return "\n".join(lines)

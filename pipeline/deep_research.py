@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 import frontmatter
-import yaml
 
 from lib.llm import call_llm
 from lib.scraper import scrape_website
@@ -16,7 +15,6 @@ log = logging.getLogger("pipeline.deep_research")
 
 IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
-FORMULA_PATH = Path("config/scoring_formula.yaml")
 
 
 async def research_one(post: frontmatter.Post, slug: str) -> dict:
@@ -98,19 +96,16 @@ async def run_deep_research(shortlist: list[str] | None = None) -> dict:
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
 
     if shortlist is None:
-        # Read shortlist thresholds from config — not hardcoded
-        formula = yaml.safe_load(FORMULA_PATH.open())
-        invest_threshold = formula["shortlist"]["invest_threshold"]
-        build_threshold = formula["shortlist"]["build_threshold"]
-
-        # Scan IDEAS_DIR for shortlisted startups
+        # Scan IDEAS_DIR for research candidates from triage
         candidates = []
         for idea_file in sorted(IDEAS_DIR.glob("*.md")):
             try:
                 post = load_idea(idea_file)
-                invest_score = post.get("invest_score", 0) or 0
-                build_score = post.get("build_score", 0) or 0
-                if invest_score >= invest_threshold or build_score >= build_threshold:
+                if post.get("filtered") != "passed":
+                    continue
+                invest_priority = post.get("invest_priority", "low")
+                build_candidate = post.get("build_candidate", False)
+                if invest_priority in ("high", "medium") or build_candidate:
                     slug = make_slug(post.get("name", idea_file.stem))
                     candidates.append((post, slug))
             except Exception:
