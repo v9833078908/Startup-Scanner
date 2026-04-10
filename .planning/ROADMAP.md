@@ -15,7 +15,7 @@
   - [ ] `3_analysis/` has scoring files with invest + build verdicts
   - [ ] `digests/` contains a complete weekly report with all sections
   - [ ] Digest makes sense on manual review
-- **Plans:** 5/5 plans complete
+- **Plans:** 6/6 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Project setup, config files, shared libraries, and LLM prompts

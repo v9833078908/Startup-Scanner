@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "### Phase 1: MVP — DealPad Pipeline End-to-End"
 status: planning
-last_updated: "2026-04-10T09:37:39.758Z"
+last_updated: "2026-04-10T12:09:25.431Z"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -52,3 +52,7 @@ Plan: Not started
 - [Phase 01]: determine_verdict sorts thresholds dict descending by value — config-driven, not hardcoded
 - [Phase 01-05]: LLM-first digest with manual fallback: tries light model first, falls back to build_digest_manually() if result < 200 chars
 - [Phase 01-05]: load_dotenv() placed at module level in run_pipeline.py before pipeline imports to ensure env vars loaded before lib/llm.py reads them
+- [Phase 01]: YAML string keys must be quoted in scoring_formula.yaml — PyYAML 1.1 coerces bare yes/no to booleans, breaking formula dict lookups
+- [Phase 01-06]: LLM classification failures produce review_needed=True with is_tech=True/sector_match=partial fallback — ideas pass through to scoring, never false-archived
+- [Phase 01-06]: Round size is invest_formula FACTOR (round_fit: in_range/close/far) not eligibility gate — invest_eligible computed from is_tech + sector_match only
+- [Phase 01-06]: All shortlist thresholds unified in config/scoring_formula.yaml — deep_research and digest_generator read from config, no hardcoded values
