@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "### Phase 1: MVP — DealPad Pipeline End-to-End"
-status: executing
-last_updated: "2026-04-10T09:29:35.295Z"
+status: verifying
+last_updated: "2026-04-10T09:33:29.444Z"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # State — Startup Scouting Pipeline
@@ -21,7 +21,7 @@ Plan: 5 of 5
 
 - **Milestone:** 1 — Scouting Pipeline v1.0
 - **Phase:** 1 — MVP DealPad Pipeline End-to-End
-- **Status:** Ready to execute
+- **Status:** Phase complete — ready for verification
 - **LastActivity:** 2026-04-10
 
 ## Progress
@@ -50,3 +50,5 @@ Plan: 5 of 5
 - [Phase 01]: Shortlist re-scans all 1_ideas/ after writing rather than accumulating in-memory — handles idempotent re-runs where some ideas were pre-scored
 - [Phase 01]: compute_weighted_score accepts both plain numeric scores and {score, rationale} dicts
 - [Phase 01]: determine_verdict sorts thresholds dict descending by value — config-driven, not hardcoded
+- [Phase 01-05]: LLM-first digest with manual fallback: tries light model first, falls back to build_digest_manually() if result < 200 chars
+- [Phase 01-05]: load_dotenv() placed at module level in run_pipeline.py before pipeline imports to ensure env vars loaded before lib/llm.py reads them
