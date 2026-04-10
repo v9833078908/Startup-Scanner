@@ -1,0 +1,54 @@
+invest_mode:
+  criteria:
+    founder_strength: 0.20
+    product: 0.15
+    traction: 0.15
+    market: 0.10
+    business_model: 0.10
+    technology: 0.10
+    ifree_fit: 0.10
+    momentum: 0.05
+    fundraising_fit: 0.03
+    gut_feeling: 0.02
+  thresholds:
+    invest: 8.0
+    watch: 6.0
+    pass: 0.0
+  red_flags:
+    no_linkedin: -2
+    no_product: -2
+    fake_stars: -3
+  green_flags:
+    yc: +2
+    prev_exit: +2
+    warm_intro: +2
+    multi_source: +1
+
+build_mode:
+  criteria:
+    market_opportunity: 0.30
+    ifree_fit: 0.25
+    technical_feasibility: 0.15
+    speed_to_market: 0.10
+    revenue_potential: 0.10
+    defensibility: 0.05
+    trend_alignment: 0.03
+    gut_feeling: 0.02
+  thresholds:
+    build: 8.0
+    partner: 6.0
+    monitor: 4.0
+    skip: 0.0
+
+ifree_focus:
+  sectors:
+    - AI/ML
+    - fintech
+    - gamedev
+    - developer tools
+    - infrastructure
+    - automation
+  geography: "Russia + Global"
+  check_size: "$30K-$300K"
+  stage: "seed / early growth"
+  key_filter: "strong founders — team matters more than idea"

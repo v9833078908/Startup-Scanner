@@ -1,0 +1,59 @@
+# Niches to INCLUDE (pass if startup matches any)
+include_niches:
+  - AI
+  - ML
+  - machine learning
+  - fintech
+  - finance
+  - payments
+  - gamedev
+  - gaming
+  - developer tools
+  - devtools
+  - infrastructure
+  - automation
+  - SaaS
+  - B2B
+  - marketplace
+  - analytics
+  - data
+  - cybersecurity
+  - security
+  - cloud
+  - API
+  - platform
+  - robotics
+  - edtech
+  - healthtech
+  - legaltech
+  - logistics
+  - HR tech
+  - proptech
+
+# Niches to EXCLUDE (reject if matches)
+exclude_niches:
+  - real estate development
+  - oil
+  - gas
+  - petrochemical
+  - mining
+  - agriculture
+  - farming
+  - construction
+  - senior living
+  - nursing home
+  - assisted living
+  - traditional retail
+  - food & beverage
+  - restaurant
+
+# Round size filter (null = no filter)
+min_round_usd: null        # no minimum
+max_round_usd: 500000000   # skip $500M+ mega-rounds (not startup territory)
+
+# Anti-spam: skip if description is too short
+min_description_length: 20
+
+# Date range (null = no filter)
+date_from: null
+date_to: null
