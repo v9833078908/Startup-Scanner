@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "### Phase 1: MVP — DealPad Pipeline End-to-End"
-status: planning
-last_updated: "2026-04-10T12:09:25.431Z"
+status: executing
+last_updated: "2026-04-13T09:01:22.295Z"
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 11
+  completed_plans: 11
   percent: 100
 ---
 
@@ -16,12 +16,12 @@ progress:
 
 ## Current Position
 
-Phase: 1 (MVP — DealPad Pipeline End-to-End) — EXECUTING
-Plan: Not started
+Phase: 01 (mvp-dealpad-pipeline-end-to-end) — EXECUTING
+Plan: 2 of 11
 
 - **Milestone:** 1 — Scouting Pipeline v1.0
 - **Phase:** 2
-- **Status:** Ready to plan
+- **Status:** Ready to execute
 - **LastActivity:** 2026-04-10
 
 ## Progress
@@ -56,3 +56,5 @@ Plan: Not started
 - [Phase 01-06]: LLM classification failures produce review_needed=True with is_tech=True/sector_match=partial fallback — ideas pass through to scoring, never false-archived
 - [Phase 01-06]: Round size is invest_formula FACTOR (round_fit: in_range/close/far) not eligibility gate — invest_eligible computed from is_tech + sector_match only
 - [Phase 01-06]: All shortlist thresholds unified in config/scoring_formula.yaml — deep_research and digest_generator read from config, no hardcoded values
+- [Phase 01]: DDG default search with Sonar fallback via call_llm() -- zero API keys for local dev, Exa for production quality
+- [Phase 01]: Search abstraction layer: all research modules import web_search(), never direct backend clients
