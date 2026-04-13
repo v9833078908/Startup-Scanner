@@ -140,7 +140,7 @@ async def run_invest_research(slugs: list[str]) -> dict:
         except Exception:
             continue
 
-    tasks = []
+    pending = []
     skipped = 0
 
     for slug in slugs:
@@ -162,9 +162,18 @@ async def run_invest_research(slugs: list[str]) -> dict:
             skipped += 1
             continue
 
-        tasks.append(research_one_invest(post, slug))
+        pending.append((post, slug))
 
-    log.info("Invest research: %d to process, %d skipped", len(tasks), skipped)
+    log.info("Invest research: %d to process, %d skipped", len(pending), skipped)
+
+    # Limit concurrency to avoid DDG/Sonar rate limits
+    sem = asyncio.Semaphore(5)
+
+    async def _throttled(post, slug):
+        async with sem:
+            return await research_one_invest(post, slug)
+
+    tasks = [_throttled(p, s) for p, s in pending]
 
     t0 = time.monotonic()
     results = await asyncio.gather(*tasks, return_exceptions=True)

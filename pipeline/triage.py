@@ -21,6 +21,9 @@ REQUIRED_KEYS = {
     "barriers",
     "one_liner",
     "category",
+    "replicability",
+    "cis_gap_likelihood",
+    "stack_fit",
 }
 
 
@@ -71,6 +74,7 @@ async def triage_one(post: frontmatter.Post, prompt_template: str) -> dict | Non
         prompt,
         model=os.getenv("OPENROUTER_MODEL_LIGHT"),
         json_mode=True,
+        temperature=0.0,
     )
 
     if isinstance(result, Exception) or result is None:
@@ -86,6 +90,13 @@ async def triage_one(post: frontmatter.Post, prompt_template: str) -> dict | Non
     # Coerce boolean fields
     result["has_product_evidence"] = _coerce_bool(result["has_product_evidence"])
     result["has_founder_signal"] = _coerce_bool(result["has_founder_signal"])
+    result["cis_gap_likelihood"] = _coerce_bool(result.get("cis_gap_likelihood", False))
+    result["stack_fit"] = _coerce_bool(result.get("stack_fit", False))
+
+    # Validate replicability
+    valid_repl = ("easy", "medium", "hard", "impossible")
+    repl = str(result.get("replicability", "hard")).lower()
+    result["replicability"] = repl if repl in valid_repl else "hard"
 
     return result
 
@@ -113,17 +124,30 @@ def compute_invest_priority(
     return "low"
 
 
-def compute_build_candidate(post: frontmatter.Post, config: dict) -> bool:
-    """Check if startup is a build candidate based on type-level filters.
-
-    Pure classification check -- rare signals come later at research gate.
+def compute_build_candidate(post: frontmatter.Post, triage_result: dict, config: dict) -> bool:
+    """Check if startup is a build candidate. Tighter than before:
+    requires replicability in (easy/medium) AND stack_fit=true.
     """
     req = config["build_candidate_requires"]
     return (
         post.get("is_tech") is True
         and post.get("product_type") in req["product_type"]
         and post.get("sector_match") in req["sector_match"]
+        and triage_result.get("replicability") in req.get("replicability", ["easy", "medium"])
+        and _coerce_bool(triage_result.get("stack_fit", False))
     )
+
+
+def compute_route(invest_priority: str, build_candidate: bool) -> str:
+    """Determine pipeline track from invest priority and build candidate status."""
+    invest_interested = invest_priority in ("high", "medium")
+    if invest_interested and build_candidate:
+        return "both"
+    if invest_interested:
+        return "invest"
+    if build_candidate:
+        return "build"
+    return "skip"
 
 
 async def run_triage() -> dict:
@@ -155,6 +179,7 @@ async def run_triage() -> dict:
     triaged_count = 0
     failed_count = 0
     priority_dist = {"high": 0, "medium": 0, "low": 0}
+    route_dist = {"invest": 0, "build": 0, "both": 0, "skip": 0}
     build_count = 0
     research_list = []
 
@@ -164,7 +189,8 @@ async def run_triage() -> dict:
             continue
 
         invest_priority = compute_invest_priority(post, result, config)
-        build_candidate = compute_build_candidate(post, config)
+        build_candidate = compute_build_candidate(post, result, config)
+        route = compute_route(invest_priority, build_candidate)
 
         # Write triage fields to frontmatter
         post["invest_priority"] = invest_priority
@@ -174,16 +200,21 @@ async def run_triage() -> dict:
         post["barriers"] = result.get("barriers", [])
         post["one_liner"] = result.get("one_liner")
         post["category"] = result.get("category")
+        post["replicability"] = result["replicability"]
+        post["cis_gap_likelihood"] = result["cis_gap_likelihood"]
+        post["stack_fit"] = result["stack_fit"]
+        post["route"] = route
 
         save_idea(post, file_path)
         triaged_count += 1
 
         priority_dist[invest_priority] += 1
+        route_dist[route] += 1
         if build_candidate:
             build_count += 1
 
         # Research list: anything worth investigating further
-        if invest_priority != "low" or build_candidate:
+        if route != "skip":
             slug = make_slug(post.get("name", file_path.stem))
             research_list.append(slug)
 
@@ -195,15 +226,16 @@ async def run_triage() -> dict:
         slug = make_slug(post.get("name", file_path.stem))
         if slug in research_list:
             continue
-        ip = post.get("invest_priority")
-        bc = post.get("build_candidate")
-        if (ip and ip != "low") or bc:
+        r = post.get("route", "skip")
+        if r != "skip":
             research_list.append(slug)
 
     print(
         f"Triage: {triaged_count} triaged, {failed_count} failed, {skipped} skipped\n"
         f"  Priority: high={priority_dist['high']}, medium={priority_dist['medium']}, "
         f"low={priority_dist['low']}\n"
+        f"  Route: invest={route_dist['invest']}, build={route_dist['build']}, "
+        f"both={route_dist['both']}, skip={route_dist['skip']}\n"
         f"  Build candidates: {build_count}\n"
         f"  Research list: {len(research_list)} ideas"
     )
@@ -213,6 +245,7 @@ async def run_triage() -> dict:
         "failed": failed_count,
         "skipped": skipped,
         "priority_distribution": priority_dist,
+        "route_distribution": route_dist,
         "build_candidates": build_count,
         "research_list": research_list,
         "research_count": len(research_list),

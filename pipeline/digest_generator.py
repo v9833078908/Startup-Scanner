@@ -64,25 +64,39 @@ def collect_pipeline_stats() -> dict:
 
 
 def collect_analyses() -> list[dict]:
-    """Read all analysis files and return sorted list of analysis dicts."""
+    """Read all analysis files and return sorted list of analysis dicts.
+
+    Enriches each analysis with data from the matching idea file:
+    category, one_liner, round_raw (analysis files don't store these).
+    """
     analyses = []
+
+    # Build slug->idea lookup once
+    idea_map = {}
+    for idea_file in IDEAS_DIR.glob("*.md"):
+        try:
+            idea = load_idea(idea_file)
+            idea_slug = make_slug(idea.get("name", ""))
+            idea_map[idea_slug] = idea
+        except Exception:
+            continue
 
     for analysis_file in ANALYSIS_DIR.glob("*_analysis.md"):
         try:
             post = frontmatter.load(str(analysis_file))
             slug = analysis_file.stem.replace("_analysis", "")
 
-            # Try to find matching idea file for category
+            # Enrich from idea file
+            idea = idea_map.get(slug)
             category = post.get("category", "Unknown")
-            if category == "Unknown":
-                for idea_file in IDEAS_DIR.glob("*.md"):
-                    try:
-                        idea = load_idea(idea_file)
-                        if make_slug(idea.get("name", "")) == slug:
-                            category = idea.get("category", "Unknown")
-                            break
-                    except Exception:
-                        continue
+            round_raw = post.get("round_raw", "Unknown")
+            one_liner = ""
+            if idea:
+                if category == "Unknown":
+                    category = idea.get("category", "Unknown")
+                if round_raw == "Unknown":
+                    round_raw = idea.get("round_raw", "Unknown")
+                one_liner = idea.get("one_liner", "")
 
             analyses.append(
                 {
@@ -93,15 +107,16 @@ def collect_analyses() -> list[dict]:
                     "invest_verdict": post.get("invest_verdict", "PASS"),
                     "build_verdict": post.get("build_verdict", "SKIP"),
                     "category": category,
-                    "round_raw": post.get("round_raw", "Unknown"),
+                    "round_raw": round_raw,
+                    "one_liner": one_liner,
                     "content": post.content,
                 }
             )
         except Exception:
             continue
 
-    # Sort by invest_total descending
-    analyses.sort(key=lambda x: x["invest_total"], reverse=True)
+    # Sort by build_total descending (build-first pipeline)
+    analyses.sort(key=lambda x: x["build_total"], reverse=True)
     return analyses
 
 
@@ -131,9 +146,21 @@ def _extract_section(content: str, header: str) -> str:
     return "\n".join(section_lines).strip()
 
 
+def _load_pipeline_tracks() -> dict:
+    """Load pipeline_tracks config."""
+    import yaml
+    cfg_path = Path("config/triage.yaml")
+    if cfg_path.exists():
+        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+        return cfg.get("pipeline_tracks", {})
+    return {}
+
+
 def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
     """FALLBACK: Build digest without LLM using string formatting."""
     today = datetime.date.today().isoformat()
+    tracks = _load_pipeline_tracks()
+    invest_enabled = tracks.get("invest", False)
 
     invest_candidates = [a for a in analyses if a["invest_verdict"] == "INVEST"]
     watch_list = [a for a in analyses if a["invest_verdict"] == "WATCH"]
@@ -163,7 +190,7 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
         "",
     ]
 
-    # INVEST Candidates section (from deep analysis scores)
+    # INVEST Candidates section
     lines += [
         "## INVEST Candidates (invest_score >= 8)",
         "",
@@ -202,8 +229,7 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
     ]
     if watch_list:
         for a in watch_list:
-            one_liner = _extract_section(a["content"], "One-liner") or ""
-            one_liner = one_liner.replace("\n", " ").strip()[:100]
+            one_liner = str(a.get("one_liner", "")).replace("|", "/").strip()[:100]
             name_col = a["name"].replace("|", "/")
             cat_col = str(a["category"]).replace("|", "/")
             round_col = str(a["round_raw"]).replace("|", "/")
@@ -215,19 +241,22 @@ def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
         lines.append("| (none this week) | -- | -- | -- | -- |")
     lines.append("")
 
-    # BUILD Opportunities section (from deep analysis scores)
+    # BUILD Opportunities section
     lines += [
-        "## BUILD Opportunities (build_score >= 8)",
+        "## BUILD Opportunities (build_score >= 6)",
         "",
     ]
     if build_opps:
         for a in build_opps:
             cis_section = _extract_section(a["content"], "CIS Adaptation")
+            one_liner = str(a.get("one_liner", "")).strip()
             lines += [
                 f"### {a['name']} -- Build Score: {a['build_total']}/10",
                 f"**Category:** {a['category']} | **Round:** {a['round_raw']}",
-                "",
             ]
+            if one_liner:
+                lines.append(f"**One-liner:** {one_liner}")
+            lines.append("")
             if cis_section:
                 lines.append(f"**CIS Adaptation:** {cis_section[:300]}")
             lines.append("")

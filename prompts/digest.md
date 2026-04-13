@@ -45,17 +45,17 @@ For each startup with invest_verdict = INVEST, provide:
 
 Table format:
 
-| Startup | Score | Category | Round | One-liner | Revisit |
-|---------|-------|----------|-------|-----------|---------|
+| Startup | Score | Category | Round | One-liner |
+|---------|-------|----------|-------|-----------|
 
-Include all startups with invest_verdict = WATCH. Revisit = suggested follow-up date (2-4 weeks out).
+Include all startups with invest_verdict = WATCH. Use the `one_liner` field from the data. Use the `round_raw` field for the Round column.
 
 ---
 
 ## BUILD Opportunities (build_score ≥ 6)
 
 For each startup with build_verdict in [BUILD, PARTNER], provide:
-- **Name** — build_total score
+- **Name** — build_total score, round size (from `round_raw` field)
 - What to build: specific product/feature to develop
 - CIS adaptation: key localization points (from cis_adaptation field)
 - iFree fit: why this matches iFree's capabilities and audience

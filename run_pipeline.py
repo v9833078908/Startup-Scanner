@@ -58,26 +58,33 @@ STRIP_FIELDS = [
 ]
 
 
-def do_reset() -> None:
+def do_reset(fresh: bool = False) -> None:
     """
-    Reset full pipeline state for a clean re-run:
-      a. Move all _archive/*.md back to 1_ideas/
-      b. Delete all files/dirs in 2_research/ (including gate.md)
-      c. Delete all .md files in 3_analysis/
-      d. Delete all .md files in digests/
-      e. Strip all classification/triage/gate fields from 1_ideas/*.md frontmatter
+    Reset pipeline state for a re-run.
+
+    fresh=False (default): restore archived ideas + strip fields (re-run on same data)
+    fresh=True (--fresh):  delete all 1_ideas/ so parser starts from scratch (new export)
     """
     from lib.utils import load_idea, save_idea
 
     IDEAS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # a. Restore archived ideas
-    restored = 0
-    if ARCHIVE_DIR.exists():
-        for archived_file in sorted(ARCHIVE_DIR.glob("*.md")):
-            dest = IDEAS_DIR / archived_file.name
-            shutil.move(str(archived_file), str(dest))
-            restored += 1
+    if fresh:
+        # a. Fresh mode: clear 1_ideas/ entirely, don't restore archive
+        cleared = 0
+        for f in IDEAS_DIR.glob("*.md"):
+            f.unlink()
+            cleared += 1
+        log.info("Fresh reset: cleared %d ideas from 1_ideas/", cleared)
+        restored = 0
+    else:
+        # a. Restore archived ideas
+        restored = 0
+        if ARCHIVE_DIR.exists():
+            for archived_file in sorted(ARCHIVE_DIR.glob("*.md")):
+                dest = IDEAS_DIR / archived_file.name
+                shutil.move(str(archived_file), str(dest))
+                restored += 1
 
     # b. Clear 2_research/ (subdirs per startup, includes gate.md)
     if RESEARCH_DIR.exists():
@@ -92,10 +99,8 @@ def do_reset() -> None:
         for f in ANALYSIS_DIR.glob("*.md"):
             f.unlink()
 
-    # d. Clear digests/ .md files
-    if DIGESTS_DIR.exists():
-        for f in DIGESTS_DIR.glob("*.md"):
-            f.unlink()
+    # d. Digests are cumulative — never delete previous weeks
+    # New pipeline runs append/overwrite current week only
 
     # e. Strip classification/triage/gate fields from all idea files
     cleaned = 0
@@ -142,12 +147,12 @@ def _derive_route(post) -> str:
     return "skip"
 
 
-async def main(html_path: str, reset: bool = False) -> None:
+async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None:
     setup_logging()
 
     if reset:
-        log.info("=== Resetting pipeline state ===")
-        do_reset()
+        log.info("=== Resetting pipeline state (fresh=%s) ===", fresh)
+        do_reset(fresh=fresh)
 
     log.info("=== Startup Scouting Pipeline (9-stage dual-track funnel) ===")
     log.info("Input: %s", html_path)
@@ -165,50 +170,101 @@ async def main(html_path: str, reset: bool = False) -> None:
     log.info("[3/9] Triage (binary evidence signals)...")
     triage_result = await run_triage()
 
+    # Load track config — controls which tracks run (research + gate + analysis)
+    import yaml
+    triage_cfg = yaml.safe_load(
+        Path("config/triage.yaml").read_text(encoding="utf-8")
+    )
+    tracks = triage_cfg.get("pipeline_tracks", {})
+    invest_enabled = tracks.get("invest", False)
+    build_enabled = tracks.get("build", True)
+
     # Split research list by route
     research_list = triage_result.get("research_list", [])
     route_dist = triage_result.get("route_distribution", {})
 
     # Build route-specific slug lists by scanning idea files
-    invest_slugs = []  # route == "invest" or "both"
-    build_slugs = []   # route == "build" or "both"
+    # Each track only picks up its exact route — "both" requires both tracks enabled
+    include_both = tracks.get("include_both", False)
+    invest_slugs = []
+    build_slugs = []
     for idea_file in sorted(IDEAS_DIR.glob("*.md")):
         post = load_idea(idea_file)
         slug = make_slug(post.get("name", ""))
         if slug not in research_list:
             continue
         route = _derive_route(post)
-        if route in ("invest", "both"):
+        if invest_enabled and route == "invest":
             invest_slugs.append(slug)
-        if route in ("build", "both"):
+        if build_enabled and route == "build":
             build_slugs.append(slug)
+        if route == "both" and include_both:
+            if invest_enabled:
+                invest_slugs.append(slug)
+            if build_enabled:
+                build_slugs.append(slug)
         # Track route distribution if triage didn't provide it
         if not route_dist:
             route_dist[route] = route_dist.get(route, 0) + 1
 
-    # [4/9] Invest research (Exa-powered, invest/both-routed only)
-    log.info("[4/9] Invest research (Exa-powered, %d startups)...", len(invest_slugs))
-    invest_research_result = await run_invest_research(invest_slugs)
+    # [4/9] Invest research (invest/both-routed only)
+    if invest_enabled:
+        log.info("[4/9] Invest research (%d startups)...", len(invest_slugs))
+        invest_research_result = await run_invest_research(invest_slugs)
+    else:
+        log.info("[4/9] Invest research — SKIPPED (pipeline_tracks.invest=false)")
+        invest_research_result = {"researched": 0, "failed": 0, "skipped": 0}
 
-    # [5/9] Build research (Exa-powered, build/both-routed only)
-    log.info("[5/9] Build research (Exa-powered, %d startups)...", len(build_slugs))
-    build_research_result = await run_build_research(build_slugs)
+    # [5/9] Build research (build/both-routed only)
+    if build_enabled:
+        log.info("[5/9] Build research (%d startups)...", len(build_slugs))
+        build_research_result = await run_build_research(build_slugs)
+    else:
+        log.info("[5/9] Build research — SKIPPED (pipeline_tracks.build=false)")
+        build_research_result = {"researched": 0, "failed": 0, "skipped": 0}
 
     # [6/9] Invest gate (analysis readiness for invest track)
-    log.info("[6/9] Invest gate (%d startups)...", len(invest_slugs))
-    invest_gate_result = await run_invest_gate(invest_slugs)
+    if invest_enabled:
+        log.info("[6/9] Invest gate (%d startups)...", len(invest_slugs))
+        invest_gate_result = await run_invest_gate(invest_slugs)
+    else:
+        log.info("[6/9] Invest gate — SKIPPED (pipeline_tracks.invest=false)")
+        invest_gate_result = {"ready": 0, "filtered": 0, "invest_analysis_ready_slugs": []}
 
     # [7/9] Build gate (analysis readiness for build track)
-    log.info("[7/9] Build gate (%d startups)...", len(build_slugs))
-    build_gate_result = await run_build_gate(build_slugs)
+    if build_enabled:
+        log.info("[7/9] Build gate (%d startups)...", len(build_slugs))
+        build_gate_result = await run_build_gate(build_slugs)
+    else:
+        log.info("[7/9] Build gate — SKIPPED (deep_analysis.build=false)")
+        build_gate_result = {"ready": 0, "filtered": 0, "build_analysis_ready_slugs": []}
 
-    # [8/9] Deep analysis (merged analysis-ready from both gates)
     invest_ready = invest_gate_result.get("invest_analysis_ready_slugs", [])
     build_ready = build_gate_result.get("build_analysis_ready_slugs", [])
-    all_analysis_ready = list(dict.fromkeys(invest_ready + build_ready))  # dedupe, preserve order
+
+    all_analysis_ready = []
+
+    # Build track (default: on)
+    if build_enabled:
+        all_analysis_ready.extend(build_ready)
+
+    # Invest track (default: off)
+    if invest_enabled:
+        top_n = tracks.get("invest_top_n", 0)
+        if top_n > 0:
+            invest_ready = invest_ready[:top_n]
+        all_analysis_ready.extend(invest_ready)
+
+    all_analysis_ready = list(dict.fromkeys(all_analysis_ready))  # dedupe
+
     log.info(
-        "[8/9] Deep analysis (%d startups from %d invest + %d build)...",
-        len(all_analysis_ready), len(invest_ready), len(build_ready),
+        "[8/9] Deep analysis (%d startups: %s build-ready, %s invest-ready, config: build=%s invest=%s top_n=%s)...",
+        len(all_analysis_ready),
+        len(build_ready) if build_enabled else "off",
+        len(invest_ready) if invest_enabled else "off",
+        build_enabled,
+        invest_enabled,
+        tracks.get("invest_top_n", 0),
     )
     analysis_result = await run_deep_analysis(slugs=all_analysis_ready)
 
@@ -266,10 +322,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reset",
         action="store_true",
-        help=(
-            "Reset full pipeline state before running: restore archived ideas, "
-            "clear 2_research/, 3_analysis/, digests/, strip all triage/gate fields"
-        ),
+        help="Reset pipeline state: restore archived ideas, clear downstream, strip fields",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Fresh start: clear 1_ideas/ entirely (don't restore archive), parse only new export",
     )
     args = parser.parse_args()
 
@@ -277,4 +335,6 @@ if __name__ == "__main__":
         print(f"Error: path not found: {args.html}", file=sys.stderr)
         sys.exit(1)
 
-    asyncio.run(main(args.html, reset=args.reset))
+    # --fresh implies --reset
+    reset = args.reset or args.fresh
+    asyncio.run(main(args.html, reset=reset, fresh=args.fresh))

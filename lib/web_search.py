@@ -27,27 +27,39 @@ def _get_backend() -> str:
 async def _ddg_search(query: str, num_results: int = 5) -> list[dict]:
     """Search via DuckDuckGo using ddgs library (v9.13+).
 
+    DDGS.text() is synchronous — wrapped in asyncio.to_thread().
+    Retries up to 3 times with exponential backoff on empty results / errors.
     Returns list of {title, url, text, backend} dicts.
     Never raises — returns [] on failure.
     """
-    try:
-        from ddgs import AsyncDDGS
+    from ddgs import DDGS
 
-        async with AsyncDDGS() as ddgs:
-            raw = await ddgs.text(query, max_results=num_results)
+    for attempt in range(3):
+        try:
+            def _sync_search():
+                return DDGS().text(query, max_results=num_results)
 
-        return [
-            {
-                "title": r.get("title", ""),
-                "url": r.get("href", ""),
-                "text": r.get("body", "")[:2000],
-                "backend": "ddg",
-            }
-            for r in (raw or [])
-        ]
-    except Exception as exc:
-        log.warning("DDG search failed for '%s': %s", query, exc)
-        return []
+            raw = await asyncio.to_thread(_sync_search)
+
+            results = [
+                {
+                    "title": r.get("title", ""),
+                    "url": r.get("href", ""),
+                    "text": r.get("body", "")[:2000],
+                    "backend": "ddg",
+                }
+                for r in (raw or [])
+            ]
+            if results:
+                return results
+            # Empty results — might be rate-limited, retry
+            if attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+        except Exception as exc:
+            log.warning("DDG search attempt %d/3 failed for '%s': %s", attempt + 1, query, exc)
+            if attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+    return []
 
 
 async def _sonar_search(query: str, num_results: int = 5) -> list[dict]:
