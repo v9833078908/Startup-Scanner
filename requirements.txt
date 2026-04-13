@@ -6,4 +6,6 @@ pyyaml>=6.0
 python-dotenv>=1.0
 python-frontmatter>=1.1.0
 dateparser>=1.2
+# Search backends (DDG is default, Exa optional via SEARCH_BACKEND=exa)
+ddgs>=9.13
 exa-py>=1.0
