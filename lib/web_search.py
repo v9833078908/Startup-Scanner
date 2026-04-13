@@ -39,7 +39,9 @@ async def _ddg_search(query: str, num_results: int = 5) -> list[dict]:
             def _sync_search():
                 return DDGS().text(query, max_results=num_results)
 
-            raw = await asyncio.to_thread(_sync_search)
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(_sync_search), timeout=30
+            )
 
             results = [
                 {
@@ -54,11 +56,15 @@ async def _ddg_search(query: str, num_results: int = 5) -> list[dict]:
                 return results
             # Empty results — might be rate-limited, retry
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2 ** attempt + 1)
+        except asyncio.TimeoutError:
+            log.warning("DDG search timeout (30s) attempt %d/3 for '%s'", attempt + 1, query)
+            if attempt < 2:
+                await asyncio.sleep(2 ** attempt + 1)
         except Exception as exc:
             log.warning("DDG search attempt %d/3 failed for '%s': %s", attempt + 1, query, exc)
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2 ** attempt + 1)
     return []
 
 

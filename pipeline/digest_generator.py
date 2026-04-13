@@ -348,10 +348,17 @@ async def run_digest() -> dict:
         digest_md = build_digest_manually(stats, analyses)
 
     # Generate filename: {YYYY}-W{WW}_weekly.md
+    # Never overwrite existing digests — append _run2, _run3, etc.
     today = datetime.date.today()
     week_num = today.isocalendar()[1]
-    filename = f"{today.year}-W{week_num:02d}_weekly.md"
-    output_path = DIGESTS_DIR / filename
+    base_name = f"{today.year}-W{week_num:02d}_weekly"
+    output_path = DIGESTS_DIR / f"{base_name}.md"
+
+    if output_path.exists():
+        run = 2
+        while (DIGESTS_DIR / f"{base_name}_run{run}.md").exists():
+            run += 1
+        output_path = DIGESTS_DIR / f"{base_name}_run{run}.md"
 
     output_path.write_text(digest_md, encoding="utf-8")
     log.info("Digest saved to %s", output_path)

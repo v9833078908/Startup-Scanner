@@ -170,7 +170,7 @@ async def run_build_research(slugs: list[str]) -> dict:
     log.info("Build research: %d to process, %d skipped", len(pending), skipped)
 
     # Limit concurrency to avoid DDG/Sonar rate limits
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(2)
 
     async def _throttled(post, slug):
         async with sem:

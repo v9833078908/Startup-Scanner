@@ -272,6 +272,20 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
     log.info("[9/9] Generating weekly digest...")
     digest_result = await run_digest()
 
+    # Auto-commit digest so it can always be recovered
+    digest_path = digest_result.get("digest_path")
+    if digest_path and Path(digest_path).exists():
+        import subprocess
+        try:
+            subprocess.run(["git", "add", digest_path], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"digest: {Path(digest_path).name}"],
+                check=True, capture_output=True,
+            )
+            log.info("Digest committed to git: %s", digest_path)
+        except subprocess.CalledProcessError as exc:
+            log.warning("Could not auto-commit digest: %s", exc.stderr.decode().strip())
+
     # Final summary
     total_time = time.monotonic() - total_start
     stats = get_llm_stats()
