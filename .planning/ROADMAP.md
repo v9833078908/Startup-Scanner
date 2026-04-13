@@ -20,7 +20,30 @@ Plans:
 - [x] 01-10 — 9-stage dual-track pipeline wiring
 - [x] 01-11 — Web search abstraction (DDG/Exa/Sonar)
 
-### Phase 2: Multi-Source + Delivery
+### Phase 2: Deep Research + Pipeline Quality Upgrade
+- **Goal:** Add Deep Research stage (7.5) via Parallel AI Task API, upgrade Deep Analysis (Stage 8) with kill signals + executive summaries, upgrade Digest (Stage 9) for informative management-ready output
+- **Depends on:** Phase 1
+- **Context:** Meeting 2026-04-13 — Дина: текущая выдача "пустые звуки", катастрофически мало информации для управленческих решений. Нужны executive summaries по каждому стартапу, суть бизнеса, TAM, конкуренты, time to market. Убрать числовой скоринг из дайджеста. Бюджет: ~$50/нед на платные API.
+- **Success Criteria:**
+  - [ ] `lib/parallel_client.py` — async client for Parallel AI Task API (create task, poll result)
+  - [ ] `pipeline/deep_research_v2.py` — Stage 7.5: deep research for gate-passed startups via Parallel AI
+  - [ ] `prompts/deep_research_brief.md` — research brief prompt (суть бизнеса, TAM, конкуренты, traction, build assessment, география)
+  - [ ] Output: `2_research/{slug}/deep_research.md` with citations
+  - [ ] Updated `pipeline/deep_analysis.py` — reads deep_research.md, kill signals before scoring, executive summary output
+  - [ ] Updated `prompts/deep_analysis.md` — kill signals (рынок занят, высокий капитал, далеко от компетенций, >6мес до выручки) + executive summary format
+  - [ ] Updated `config/scoring_weights.yaml` — build mode criteria aligned with new doc
+  - [ ] Updated `pipeline/digest_generator.py` — executive summaries in digest, no numeric scores, PASS with kill-signal reason
+  - [ ] Updated `prompts/digest.md` — new sections: BUILD recommendations, WATCH/MONITOR detail, PASS transparency, trends
+  - [ ] `PARALLEL_API_KEY` env var documented
+  - [ ] Full pipeline run produces informative digest for management
+- **Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Parallel AI client + Stage 7.5 Deep Research module
+- [ ] 02-02-PLAN.md — Deep Analysis upgrade (kill signals + executive summaries)
+- [ ] 02-03-PLAN.md — Digest upgrade + pipeline wiring
+
+### Phase 3: Multi-Source + Delivery
 - **Goal:** Broad source coverage (8-10 parsers) + Telegram digest delivery for daily use
 - **Depends on:** Phase 1
 - **Requirements:** R9-R15, R22, R24
@@ -39,9 +62,9 @@ Plans:
   2. **Конфликт данных при мульти-источниках.** Один стартап на 3 источниках с разным описанием/раундом — кто "прав"? Текущий dedup просто пропускает дубли (первый записавший побеждает). Нужна стратегия enrichment: дополнять существующий файл данными из новых источников, а не игнорировать.
   3. **Пустые поля — норма.** GitHub-стартап без раунда, HN без описания компании — допустимо. Pipeline должен корректно работать с null/empty в round_raw, round_usd, round_date. Проверить что prefilter и triage не ломаются на таких данных.
 
-### Phase 3: Research Quality + Architecture
+### Phase 4: Research Quality + Architecture
 - **Goal:** Real web search research (not LLM hallucination), clean architecture, incremental processing
-- **Depends on:** Phase 1 (can run parallel with Phase 2)
+- **Depends on:** Phase 1 (can run parallel with Phase 3)
 - **Requirements:** R16-R17, R18-R19
 - **Success Criteria:**
   - [ ] Merge invest_*/build_* into parameterized track modules (track_research.py, track_gate.py — pipeline_tracks config already controls tracks, but Python code still duplicated)
@@ -53,9 +76,9 @@ Plans:
   - [ ] core/ abstraction layer (idea_store, research_store, analysis_store)
 - **Plans:** 0/0
 
-### Phase 4: Production Polish
+### Phase 5: Production Polish
 - **Goal:** Noise filtering, advanced features, documentation, demo readiness
-- **Depends on:** Phase 2 + Phase 3
+- **Depends on:** Phase 3 + Phase 4
 - **Requirements:** R20-R21, R25-R27
 - **Success Criteria:**
   - [ ] Fake traction detection (stars spike, stars:forks >50:1)
