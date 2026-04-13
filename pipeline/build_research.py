@@ -100,7 +100,7 @@ async def research_one_build(post, slug: str) -> dict:
             + _section("Risks", result.get("risks", "N/A"))
         )
     else:
-        body = str(result)
+        body = "(LLM synthesis failed — no structured data available)"
 
     build_research_path = research_dir / "build_research.md"
     build_research_path.write_text(

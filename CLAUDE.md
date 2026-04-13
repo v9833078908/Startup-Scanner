@@ -33,16 +33,16 @@ Every phase — even the MVP with a single source — must use the target file s
 - `THESIS.md` fixes the investment thesis and focus areas as a standalone reference
 - `SCHEMA.md` defines the YAML frontmatter contracts for ideas, research profiles, and analysis files
 
-### Headless Core Evolution (Phase 2+)
-Starting from Phase 2, file access goes through `core/` layer — not direct filesystem operations:
-- `core/idea_store.py` — save/load/archive/list/exists for ideas
-- `core/dedup.py` — deduplication as standalone module
-- `core/research_store.py` — research folder creation, enrichment file writes (Phase 4)
-- `core/analysis_store.py` — scoring file read/write (Phase 5)
-- `core/digest_service.py` — digest generation as data structure (Phase 6)
-- `adapters/` — delivery adapters (Telegram, email) call core/, never read files directly (Phase 6)
+### Headless Core Evolution (Phase 2-3)
+File access moves to `core/` layer — not direct filesystem operations:
+- `core/idea_store.py` — save/load/archive/list/exists for ideas (Phase 2, with BaseScout)
+- `core/dedup.py` — deduplication as standalone module (Phase 2, with BaseScout)
+- `core/digest_service.py` — digest generation as data structure (Phase 2, with Telegram bot)
+- `core/research_store.py` — research folder creation, enrichment file writes (Phase 3)
+- `core/analysis_store.py` — scoring file read/write (Phase 3)
+- `adapters/` — delivery adapters (Telegram) call core/, never read files directly (Phase 2)
 
-This keeps scripts + files + git architecture but prevents fragile direct coupling when UI, integrations, or new parsers are added later. Phase 1 MVP uses `lib/utils.py` directly — refactor to core/ happens in Phase 2.
+Phase 1 MVP uses `lib/utils.py` directly — refactor to core/ starts in Phase 2 (idea_store, dedup, digest_service) and completes in Phase 3 (research_store, analysis_store).
 
 ## Core Rules
 
@@ -125,25 +125,35 @@ Key filter: **strong founders** — team matters more than idea.
 3. **Hot product + iFree audience = cross-sell** — new B2B product gaining traction that iFree's clients could use
 4. **Hot niche, no dominant player** — multiple small startups, growing market, no leader yet
 
-## Data Sources (15 parsers)
+## Data Sources
 
-### Global
-GitHub Trending, GitHub Repo Metrics, Hacker News, Product Hunt, Reddit (r/SaaS, r/startups, r/MachineLearning, r/selfhosted), YC Companies, Indie Hackers, RSS feeds (TechCrunch, Crunchbase News, Sifted), Betalist
+### Phase 1 (implemented)
+DealPad Telegram export (424 startups per batch)
 
-### Russian
-Telegram channels (5+), vc.ru, Habr
+### Phase 2 (planned: 10+ parsers)
+**Simple:** GitHub Trending, Hacker News, RSS (TechCrunch, Sifted), vc.ru, Betalist
+**Auth-required:** ProductHunt (GraphQL), Reddit (OAuth2), Telegram channels (Telethon)
+**Other:** YC Companies (yc-oss/api), Indie Hackers
 
-### Special
-Founder Tracker (monitor specific people), YC Lookalike Search, Chrome Extensions
+### Phase 4 (planned: advanced)
+Founder Tracker, YC Lookalike Search
 
-## Pipeline Flow
+## Pipeline Flow (9-stage dual-track)
 
 ```
-Parsers → 1_ideas/ → (human decides) → 2_research/ → (enrichment) → 3_analysis/ → digests/
+[1] Parse DealPad → 1_ideas/
+[2] Pre-filter (LLM classification) → archive rejects
+[3] Triage (8 binary questions + route) → invest/build/both/skip
+[4] Invest research (web search: founders, traction) → 2_research/{slug}/invest_research.md
+[5] Build research (web search: CIS gap, OSS) → 2_research/{slug}/build_research.md
+[6] Invest gate (2/3 evidence threshold) → gate_invest.md
+[7] Build gate (CIS gap OR replicable+demand) → gate_build.md
+[8] Deep analysis (heavy model, configurable per track) → 3_analysis/
+[9] Digest → digests/
 ```
 
-Research enrichment: GitHub metrics, website content, social mentions.
-Analysis: OpenRouter API for both invest and build mode assessments. Model is set via env vars — different models for different task complexity (cheap model for simple extraction, stronger model for analysis/scoring).
+Tracks configurable in `config/triage.yaml` → `pipeline_tracks`: build=on, invest=off by default.
+Web search backend configurable via `SEARCH_BACKEND` env var: ddg (free), exa (best quality).
 
 ## Output Artifacts
 

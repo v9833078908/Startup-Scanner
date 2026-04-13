@@ -1,155 +1,126 @@
 # Requirements — Startup Scouting Pipeline
 
-## Phase 1: MVP DealPad Pipeline
+## Phase 1: MVP DealPad Pipeline (COMPLETE)
 
 ### R1: Project Setup
 - Python project with venv, .env, .gitignore
 - Directory structure: 1_ideas/, 2_research/, 3_analysis/, _archive/, digests/, scouts/, pipeline/, lib/, prompts/, config/
-- Dependencies: httpx, beautifulsoup4, openai, pyyaml, python-dotenv
 
 ### R2: Config Files
-- config/filters.yaml — include/exclude niches, round size limits, description length, date range
+- config/triage.yaml — invest/build signals, gate thresholds, pipeline track config, route rules
 - config/scoring_weights.yaml — invest mode (10 criteria) + build mode (8 criteria) weights and thresholds
 
 ### R3: DealPad HTML Parser
-- Parse div.message.default.clearfix elements from DealPad HTML export
-- Extract: name, url, round_raw, round_usd (normalize $115K→115000), round_date, description, message_id, post_date
-- Skip promotional messages (containing "обзоры" or "fastfounder")
+- Parse DealPad Telegram HTML export, extract name/url/round/description
 - Save as 1_ideas/{YYYY-MM-DD}_{slug}.md with YAML frontmatter
 
-### R4: Pre-filter
-- Read all 1_ideas/ MD files, apply filters.yaml
-- Niche filter: include_niches keyword match (case-insensitive), exclude_niches rejection
-- Round size filter, description length filter
-- Move rejected to _archive/ with reason in frontmatter
+### R4: Pre-filter (LLM Classification)
+- LLM classifies: is_tech, sector, sector_match, product_type, b2b_b2c
+- Hard reject: is_tech=false OR sector_match=no → archive
+- Graceful failure: review_needed=true with safe fallback
 
-### R5: LLM Quick Score
-- Send name + description + round to OpenRouter (light model)
-- Return JSON: invest_score, build_score, category, one_liner, invest_rationale, build_rationale
-- Append scores to idea frontmatter
-- Shortlist: invest_score >= 6 OR build_score >= 6
-- Async with concurrency limit (5 parallel)
+### R5: Triage (Binary Evidence + Route)
+- LLM answers 8 binary questions: 5 invest (product_evidence, founder_signal, barriers, one_liner, category) + 3 build (replicability, cis_gap_likelihood, stack_fit)
+- Mechanical: invest_priority (high/medium/low from signal count), build_candidate (tighter: replicability + stack_fit)
+- Route computation: invest/build/both/skip
 
-### R6: Deep Research
-- For each shortlisted startup: create 2_research/{slug}/
-- Scrape website main page, extract text with BS4
-- Web search via OpenRouter for company info, founders, traction, competitors
+### R6: Dual-Track Research (Web Search)
+- Invest research: web search for founders, traction, funding via DDG/Exa
+- Build research: web search for CIS competitors, OSS alternatives, market gaps
+- Research files: 2_research/{slug}/invest_research.md, build_research.md
 
-### R7: Deep Analysis
-- Load idea + research data, send to OpenRouter (heavy model)
-- Full invest scoring (10 criteria) + build scoring (8 criteria)
-- Return: weighted scores, verdicts, CIS adaptation potential, risks, next steps
-- Save as 3_analysis/{slug}_analysis.md
+### R7: Dual-Track Gates
+- Invest gate: 2/3 evidence threshold (team, traction, competitive)
+- Build gate: CIS gap confirmed OR (replicable + market demand)
+- Gate files: 2_research/{slug}/gate_invest.md, gate_build.md
 
-### R8: Digest & Orchestrator
-- Generate weekly digest MD with: pipeline summary, INVEST candidates, WATCH list, BUILD opportunities, trends, all scored startups table
-- run_pipeline.py --html path/to/messages.html runs steps 1-6 sequentially
-- Each step is idempotent
+### R8: Deep Analysis + Digest
+- Heavy model scoring: invest (10 criteria) + build (8 criteria), weighted
+- Configurable per track: build default on, invest default off, invest_top_n=20
+- Weekly digest with pipeline summary + candidates + trends
 
-## Phase 2: Scout Framework + Simple Parsers
+## Phase 2: Multi-Source + Delivery
 
 ### R9: BaseScout Framework + Core Data Layer
-- `core/idea_store.py` — единая точка записи/чтения/архивации идей (save, load, archive, list, exists). Все парсеры и pipeline-шаги работают с идеями только через idea_store
-- `core/dedup.py` — дедупликация как отдельный модуль: normalize_name (strip Inc/Ltd/AI/Labs/.io/.ai/.dev/.com), extract_domain, is_duplicate (domain OR fuzzy >0.85). Built-in Jaro-Winkler (no external library)
-- BaseScout class: fetch_url (retry 3, timeout 15s, random UA), save_idea (через core/idea_store), already_exists (через core/dedup), abstract run()
-- Ни один scout не работает с файловой системой напрямую — только через core/idea_store
+- core/idea_store.py — save/load/archive/list/exists for ideas
+- core/dedup.py — normalize_name, extract_domain, is_duplicate (domain OR Jaro-Winkler >0.85)
+- BaseScout class: fetch_url, save_idea, already_exists, abstract run()
 
 ### R10: GitHub Trending + HN Parsers
-- GitHub Trending: parse daily+weekly, filter (no tutorials/awesome-lists, stars_today >= 50, has description >20 chars, not fork)
-- Hacker News: Firebase API, Show HN / Launch HN filter, score > 50, cache seen IDs, max 100 items/run
+- GitHub Trending: daily+weekly, stars_today >= 50, no tutorials/forks
+- HN: Firebase API, Show HN / Launch HN, score > 50
 
 ### R11: RSS-Based Parsers
-- RSS feeds: feedparser, config-driven feeds list with keywords
+- RSS feeds (TechCrunch, Crunchbase News, Sifted) via feedparser
 - vc.ru: RSS with Russian startup keywords
-- Habr: RSS hubs startup + open_source, rating filter
+- Habr: RSS hubs startup + open_source
 
 ### R12: Betalist Parser
 - Scrape betalist.com for latest beta launches
 
-## Phase 3: Auth-Based & Complex Parsers
-
 ### R13: Product Hunt + Reddit
-- Product Hunt: GraphQL API with auth token, top-20 products, upvotes > 50
-- Reddit: OAuth2 setup, 4 subreddits, score > 20, external URL + keyword match, rate limit 1 req/2s
+- Product Hunt: GraphQL API with auth, upvotes > 50
+- Reddit: OAuth2, 4 subreddits, score > 20
 
 ### R14: Telegram + Russian Sources
-- Telegram: Telethon, config/telegram_channels.yaml (5+ channels), keyword filtering, URL extraction, state tracking
-- Auth: interactive Telethon authorization on first run
+- Telethon, 5+ channels, keyword filtering, URL extraction
 
-### R15: YC + Indie Hackers + Founder Tracker
-- YC Companies: yc-oss/api or scraping, latest batch, all pass filter (pre-filtered)
-- Indie Hackers: scraping for revenue milestones and launches
-- Founder Tracker: config/tracked_founders.yaml, GitHub API for new repos (30 days)
+### R15: YC + Indie Hackers
+- YC Companies via yc-oss/api
+- Indie Hackers: revenue milestones and launches
 
-## Phase 4: Research Enrichment
-
-### R16: GitHub & Website Enrichment
-- `core/research_store.py` — создание папки в 2_research/, запись enrichment-файлов, чтение профиля. Все enrichment-скрипты пишут через research_store
-- enrich_github.py: stars, forks, issues, watchers, contributors, commits/30d, languages, topics, stars_per_day
-- enrich_website.py: main page + /about + /pricing + /features + /team, BS4 text extraction
-
-### R17: Mentions & Research Workflow
-- enrich_mentions.py: HN Algolia API + Reddit search API
-- move_to_research.py: использует core/idea_store + core/research_store (не shutil/os напрямую)
-- --all-older-than N flag for batch processing
-
-## Phase 5: Full Scoring & Reports
-
-### R18: Config-Driven Scoring Module + Analysis Store
-- `core/analysis_store.py` — запись/чтение scoring-файлов через единый интерфейс
-- Scoring weights загружаются только через core/ (не прямой yaml.load в скриптах)
-- Каждый analysis-файл содержит `prompt_version` и `model` в frontmatter (трассировка дрифта при смене модели/промпта)
-- Read weights from scoring_weights.yaml
-- Invest: 10 criteria + red flags (no_linkedin=-2, no_product=-2, fake_stars=-3) + green flags (yc=+2, prev_exit=+2, warm_intro=+2, multi_source=+1)
-- Build: 8 criteria, thresholds BUILD/PARTNER/MONITOR/SKIP
-
-### R19: Enhanced Analysis Agent
-- OpenRouter heavy model with full prompts from prompts/ folder
-- Invest mode: 10 criteria scoring + за/против + recommendation
-- Build mode: 8 criteria + what to build + iFree advantages + risks
-- --mode invest|build|both flag
-
-### R20: Daily & Weekly Digests
-- Daily: hot finds (score >= 8), new ideas 24h, pipeline movement, build opportunities, source efficiency
-- Weekly: executive summary, INVEST cards (full), WATCH list, build opportunities (detailed), trends, pipeline status
-
-### R21: Trend & Build Reports
-- Monthly trends: top-10 niches, open-source gems, founders to watch, macro signals
-- Build opportunities: top-5 ranked by build_score, detailed breakdown per idea
-
-## Phase 6: Delivery & Automation
-
-### R22: Telegram Bot (adapter pattern)
-- `core/digest_service.py` — генерация дайджеста как структура данных (dict/dataclass), не сразу в файл
-- `adapters/telegram_bot.py` — доставка через Telegram, вызывает core/digest_service
-- Адаптер не читает 1_ideas/, 2_research/, 3_analysis/ напрямую — только через core/
-- Commands: /status, /new, /top, /build, /digest
-- Auto-alerts on invest_score > 8
-- Config: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID in .env
-
-### R23: Email Delivery (adapter pattern)
-- `adapters/email_adapter.py` — доставка через Resend API, вызывает core/digest_service
-- Адаптер не читает файлы напрямую — только через core/
-- Send MD digest as formatted email
-- Config: RESEND_API_KEY, recipient email in .env
+### R22: Telegram Bot (Delivery)
+- core/digest_service.py — digest as data structure
+- adapters/telegram_bot.py — /digest, /top, /build, /status
+- Auto-alert on invest_score > 8
 
 ### R24: Cron & Orchestration
-- `full_pipeline.py` — оркестратор вызывает core/ функции последовательно
-- run_all_scouts.sh: sequential run of all parsers, continue on error
+- Parsers 3x/day, daily digest every morning, weekly report Mondays
 - status.py: pipeline state overview
-- Crontab instructions in README
 
-## Phase 7: Advanced Features
+## Phase 3: Research Quality + Architecture
 
-### R25: YC Lookalike + Chrome Extensions
-- YC Lookalike: generate search queries from YC descriptions, find similar non-YC repos, >100 stars, recent commits
-- Chrome Extensions: monitor Chrome Web Store productivity/developer categories
+### R16: GitHub & Website Enrichment
+- core/research_store.py — research folder management
+- enrich_github.py: stars, forks, issues, contributors, commits/30d
+- enrich_website.py: main page + /about + /pricing + /team
+
+### R17: Research Workflow
+- enrich_mentions.py: HN Algolia + Reddit search
+- Incremental processing: track processed IDs, skip already-triaged
+
+### R18: Architecture Cleanup
+- Merge invest_*/build_* into parameterized track modules
+- Extract _coerce_bool(), format_search_results() to lib/utils.py
+- Remove legacy dead code (deep_research.py, research_gate.py)
+- Split config/triage.yaml into triage, gates, pipeline configs
+- Unit tests for pure functions (compute_route, compute_build_candidate, etc.)
+
+### R19: Prompt & Cost Management
+- Prompt versioning in frontmatter
+- Cost tracking per pipeline run
+- Prompt compression (900 → 630 tokens triage prompt)
+
+## Phase 4: Production Polish
+
+### R20: Daily & Weekly Digests
+- Daily: hot finds, new ideas 24h, pipeline movement
+- Weekly: executive summary, INVEST cards, WATCH list, trends
+- Monthly: top niches, open-source gems, macro signals
+
+### R21: Build Reports
+- Build opportunities: top-5 ranked, detailed breakdown
+- Trend report: niche tracking over time
+
+### R25: Advanced Scouting
+- YC Lookalike: find similar non-YC repos, >100 stars
+- Founder Tracker: config/tracked_founders.yaml, GitHub activity
+- Chrome Extensions: monitor developer/productivity categories
 
 ### R26: Noise Filtering
-- Fake traction: stars spike without forks/issues/commits, stars:forks >50:1, no mentions outside GitHub
-- "Amateur startup" auto-skip: >3 red flags (no LinkedIn/GitHub, no product, free hosting, solo, single mention, generic description)
+- Fake traction: stars spike without forks, stars:forks >50:1
+- Amateur startup auto-skip: >3 red flags
 
 ### R27: Documentation & Demo
-- README: quickstart, parser descriptions, add new source guide, cron setup, invest vs build workflow, FAQ
+- README: quickstart, parser docs, cron setup, FAQ
 - Demo script: fake startup through full pipeline
-- convert-to-MD utility: PDF, DOCX, XLSX, PPTX, HTML → Markdown

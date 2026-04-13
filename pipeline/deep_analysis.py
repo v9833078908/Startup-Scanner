@@ -53,11 +53,16 @@ async def analyze_one(
     prompt_template: str,
     weights: dict,
 ) -> dict:
-    # Load research data
+    # Load research data — check track-specific files first, fall back to legacy
     website_path = research_dir / "website.md"
-    research_path = research_dir / "web_research.md"
     website_content = website_path.read_text(encoding="utf-8") if website_path.exists() else ""
-    research_notes = research_path.read_text(encoding="utf-8") if research_path.exists() else ""
+
+    research_notes = ""
+    for research_file in ("invest_research.md", "build_research.md", "web_research.md"):
+        rp = research_dir / research_file
+        if rp.exists():
+            research_notes += rp.read_text(encoding="utf-8") + "\n\n"
+    research_notes = research_notes.strip()
 
     name = post.get("name", slug)
     url = post.get("url", "")

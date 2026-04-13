@@ -2,132 +2,64 @@
 
 ## Milestone 1: Scouting Pipeline v1.0
 
-### Phase 1: MVP — DealPad Pipeline End-to-End
-- **Goal:** Working pipeline: DealPad HTML export → weekly digest report for shareholder demo (April 15)
-- **Deadline:** April 13, 2026
-- **Requirements:** R1, R2, R3, R4, R5, R6, R7, R8
-- **Success Criteria:**
-  - [ ] `run_pipeline.py --html messages.html` runs end-to-end without errors
-  - [ ] `1_ideas/` contains ~430 parsed MD files from DealPad
-  - [ ] Pre-filter reduces to ~60-100 relevant startups
-  - [ ] Quick score shortlists ~15-30 startups (invest_score >= 6 OR build_score >= 6)
-  - [ ] `2_research/` has folders with website + research data for shortlisted
-  - [ ] `3_analysis/` has scoring files with invest + build verdicts
-  - [ ] `digests/` contains a complete weekly report with all sections
-  - [ ] Digest makes sense on manual review
-- **Plans:** 6/6 plans complete
+### Phase 1: MVP — DealPad Pipeline End-to-End (COMPLETE)
+- **Goal:** Working 9-stage dual-track pipeline: DealPad HTML → triage with invest/build routing → web search research → gates → analysis → digest
+- **Status:** Complete (11 plans executed)
+- **Plans:** 11/11 complete
 
 Plans:
-- [x] 01-01-PLAN.md — Project setup, config files, shared libraries, and LLM prompts
-- [x] 01-02-PLAN.md — DealPad HTML parser and pre-filter
-- [x] 01-03-PLAN.md — LLM quick scoring module
-- [x] 01-04-PLAN.md — Deep research and deep analysis
-- [x] 01-05-PLAN.md — Digest generator and pipeline orchestrator
+- [x] 01-01 — Project setup, config, shared libs, prompts
+- [x] 01-02 — DealPad HTML parser + pre-filter
+- [x] 01-03 — LLM quick scoring (replaced in 01-07)
+- [x] 01-04 — Deep research + deep analysis
+- [x] 01-05 — Digest generator + pipeline orchestrator
+- [x] 01-06 — LLM classification pre-filter + formula scoring
+- [x] 01-07 — 5-stage triage funnel (binary signals + research gate)
+- [x] 01-08 — Triage build signals (replicability, stack_fit, route)
+- [x] 01-09 — Exa client + dual research + dual gates
+- [x] 01-10 — 9-stage dual-track pipeline wiring
+- [x] 01-11 — Web search abstraction (DDG/Exa/Sonar)
 
-### Phase 2: Scout Framework + Simple Parsers
-- **Goal:** Reusable scout architecture + core data layer + 6 new parsers for broad source coverage via simple APIs
-- **Requirements:** R9, R10, R11, R12
+### Phase 2: Multi-Source + Delivery
+- **Goal:** Broad source coverage (8-10 parsers) + Telegram digest delivery for daily use
 - **Depends on:** Phase 1
+- **Requirements:** R9-R15, R22, R24
 - **Success Criteria:**
-  - [ ] `core/idea_store.py` — единая точка записи/чтения/архивации идей (save, load, archive, list, exists)
-  - [ ] `core/dedup.py` — дедупликация как отдельный модуль (Jaro-Winkler >0.85, normalize_name, domain match)
-  - [ ] BaseScout class with fetch_url, save_idea, already_exists — все через core/idea_store
-  - [ ] Ни один scout не работает с файловой системой напрямую — только через core/idea_store
-  - [ ] DealPad parser refactored to inherit BaseScout
-  - [ ] GitHub Trending parser produces ideas from daily+weekly trending
-  - [ ] Hacker News parser captures Show HN / Launch HN with score > 50
-  - [ ] RSS parser processes TechCrunch, Crunchbase, Sifted feeds
-  - [ ] vc.ru parser captures startup articles from RSS
-  - [ ] Habr parser captures startup + open-source articles
-  - [ ] Betalist parser captures beta launches
-  - [ ] All parsers respect entry thresholds from CLAUDE.md
-  - [ ] Multi-source startups detected and flagged (bonus signal)
+  - [ ] BaseScout class + core/idea_store.py + core/dedup.py
+  - [ ] 5+ simple parsers: GitHub Trending, HN, RSS (TechCrunch, Sifted), vc.ru, Betalist
+  - [ ] 2-3 auth parsers: ProductHunt, Reddit, Telegram channels
+  - [ ] All parsers refactored to BaseScout pattern
+  - [ ] Multi-source deduplication with Jaro-Winkler >0.85
+  - [ ] Telegram bot: /digest, /top, /build, /status commands
+  - [ ] Cron: parsers 3x/day, digest every morning
+  - [ ] 50+ ideas per full multi-source run
 - **Plans:** 0/0
 
-### Phase 3: Auth-Based & Complex Parsers
-- **Goal:** Complete 15-source coverage including auth-required and complex parsers
-- **Requirements:** R9, R13, R14, R15
-- **Depends on:** Phase 2
+### Phase 3: Research Quality + Architecture
+- **Goal:** Real web search research (not LLM hallucination), clean architecture, incremental processing
+- **Depends on:** Phase 1 (can run parallel with Phase 2)
+- **Requirements:** R16-R17, R18-R19
 - **Success Criteria:**
-  - [ ] Product Hunt parser works via GraphQL API with auth
-  - [ ] Reddit parser works via OAuth2 for 4 subreddits (SaaS, startups, MachineLearning, selfhosted)
-  - [ ] Telegram parser reads last 30 messages from 5 configured channels via Telethon
-  - [ ] YC Companies parser fetches latest batch via yc-oss/api
-  - [ ] Indie Hackers parser captures revenue milestones and launches
-  - [ ] Founder Tracker monitors configured founders' GitHub activity
-  - [ ] All 15 parsers run successfully via single script
-  - [ ] Total idea coverage: 50-100+ ideas per full run across all sources
+  - [ ] Merge invest_*/build_* into parameterized track modules (track_research.py, track_gate.py — pipeline_tracks config already controls tracks, but Python code still duplicated)
+  - [ ] Verify web search quality across backends (DDG/Exa/Sonar via lib/web_search.py abstraction)
+  - [ ] GitHub API enrichment (stars, forks, contributors, commit activity)
+  - [ ] Incremental pipeline: process only new ideas since last run
+  - [ ] Prompt versioning + cost tracking per run
+  - [ ] Unit tests for routing/gating/scoring pure functions
+  - [ ] core/ abstraction layer (idea_store, research_store, analysis_store)
 - **Plans:** 0/0
 
-### Phase 4: Research Enrichment Pipeline
-- **Goal:** Automated structured data collection for shortlisted startups via core store layer
-- **Requirements:** R16, R17
-- **Depends on:** Phase 2
+### Phase 4: Production Polish
+- **Goal:** Noise filtering, advanced features, documentation, demo readiness
+- **Depends on:** Phase 2 + Phase 3
+- **Requirements:** R20-R21, R25-R27
 - **Success Criteria:**
-  - [ ] `core/research_store.py` — создание папки, запись enrichment-файлов, чтение профиля
-  - [ ] enrich_github.py collects: stars, forks, issues, contributors, commits/30d, stars_per_day
-  - [ ] enrich_website.py extracts text from main page, /about, /pricing, /team
-  - [ ] enrich_mentions.py finds mentions on HN (Algolia API) and Reddit
-  - [ ] move_to_research.py использует core/idea_store + core/research_store (не shutil напрямую)
-  - [ ] `--all-older-than 7` flag moves all ideas older than N days
-  - [ ] Research folders contain: profile.md, github_metrics.md, website_content.md, social_mentions.md
+  - [ ] Fake traction detection (stars spike, stars:forks >50:1)
+  - [ ] "Amateur startup" auto-skip (>3 red flags)
+  - [ ] Daily + weekly + monthly digest variants
+  - [ ] Build opportunities report (monthly, ranked)
+  - [ ] YC Lookalike search
+  - [ ] Founder tracker (GitHub activity monitoring)
+  - [ ] README updated with multi-source parser docs + cron setup (quickstart already exists)
+  - [ ] Demo script: fake startup through full pipeline
 - **Plans:** 0/0
-
-### Phase 5: Full Scoring & Report Suite
-- **Goal:** Complete analysis system with all 4 report types, analysis store layer, prompt versioning
-- **Requirements:** R18, R19, R20, R21
-- **Depends on:** Phase 4
-- **Success Criteria:**
-  - [ ] `core/analysis_store.py` — запись/чтение scoring-файлов через единый интерфейс
-  - [ ] Scoring weights загружаются только через core/ (не прямой yaml.load в скриптах)
-  - [ ] Каждый analysis-файл содержит `prompt_version` и `model` в frontmatter (трассировка дрифта)
-  - [ ] Scoring module reads weights from config/scoring_weights.yaml
-  - [ ] Invest scoring: 10 criteria + red/green flags, returns INVEST/WATCH/PASS
-  - [ ] Build scoring: 8 criteria, returns BUILD/PARTNER/MONITOR/SKIP
-  - [ ] Daily digest: hot finds, new ideas, pipeline movement, build opportunities, source stats
-  - [ ] Weekly report: executive summary, INVEST cards, WATCH list, build opportunities, trends
-  - [ ] Monthly trend report: top niches, open-source gems, founders to watch, macro signals
-  - [ ] Build opportunities report: ranked ideas with iFree fit analysis
-- **Plans:** 0/0
-
-### Phase 6: Delivery & Automation
-- **Goal:** System runs autonomously; delivery через adapter pattern, не напрямую в файлы
-- **Requirements:** R22, R23, R24
-- **Depends on:** Phase 5
-- **Success Criteria:**
-  - [ ] `core/digest_service.py` — генерация дайджеста как структура данных (dict/dataclass), не сразу в файл
-  - [ ] `adapters/telegram_bot.py` — доставка через Telegram, вызывает core/digest_service
-  - [ ] `adapters/email_adapter.py` — доставка через Resend API, вызывает core/digest_service
-  - [ ] Адаптеры не читают 1_ideas/, 2_research/, 3_analysis/ напрямую — только через core/
-  - [ ] Telegram bot responds to /status, /new, /top, /build, /digest
-  - [ ] Auto-alert when invest_score > 8 detected
-  - [ ] Cron: parsers 3x/day, daily digest every morning, weekly report on Mondays
-  - [ ] `full_pipeline.py` — оркестратор вызывает core/ функции последовательно
-  - [ ] status.py shows pipeline state (ideas/research/analysis/archive counts)
-- **Plans:** 0/0
-
-### Phase 7: Advanced Features & Polish
-- **Goal:** Special parsers, noise filtering, and production readiness
-- **Requirements:** R25, R26, R27
-- **Depends on:** Phase 3
-- **Success Criteria:**
-  - [ ] YC Lookalike Search finds repos similar to current YC batch companies
-  - [ ] Chrome Extensions parser monitors productivity/developer categories
-  - [ ] convert-to-MD utility handles PDF, DOCX, XLSX, PPTX, HTML
-  - [ ] Fake traction detection: stars spike without forks/issues, stars:forks >50:1
-  - [ ] "Amateur startup" auto-skip when >3 red flags present
-  - [ ] Demo script creates fake startup through full pipeline
-  - [ ] README with quickstart, parser docs, cron setup, FAQ
-- **Plans:** 0/0
-
-### Phase 8: Invest/Build Track Split — triage routing, dual research, dual gates
-
-**Goal:** Split unified pipeline into dual invest/build tracks with Exa-powered research, track-specific gates, and route-based triage to cut token waste and improve research quality
-**Requirements:** R5, R6, R8
-**Depends on:** Phase 1
-**Plans:** 3 plans
-
-Plans:
-- [ ] 08-01-PLAN.md — Extend triage with build signals (replicability, stack_fit) and route computation
-- [ ] 08-02-PLAN.md — Exa client, dual research modules, and dual gate modules
-- [ ] 08-03-PLAN.md — Pipeline orchestrator dual-track fork and schema updates

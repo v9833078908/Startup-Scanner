@@ -95,7 +95,8 @@ async def call_llm(
                         )
                         await asyncio.sleep(2**attempt)
                         continue
-                    return cleaned
+                    log.error("JSON parse failed after 3 attempts, returning None")
+                    return None
 
             except Exception as exc:
                 _stats["errors"] += 1
