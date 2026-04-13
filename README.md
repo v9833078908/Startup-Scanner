@@ -1,133 +1,124 @@
 # Startup Scouting Pipeline
 
-Automated startup scouting system for iFree. Parses deal flow from Telegram channels, filters, triages, researches via web search, and produces weekly digests with build/invest recommendations.
+Automated startup scouting system for iFree -- a tech company launching investment activity and searching for ideas for its own products. Scans global deal flow, filters noise, researches via web search, and delivers weekly digests with actionable recommendations.
 
-## Two Operating Modes
+## Vision
 
-- **Invest mode** -- find startups to invest in ($30K-$300K, seed/early growth)
-- **Build mode** -- find hot niches and ideas for iFree's own products in CIS market
+The system monitors 15+ startup sources worldwide, detects opportunities before they become obvious, and delivers a 3-minute morning digest with:
+- **Invest candidates** -- startups matching iFree's thesis ($30K-$300K, seed/early growth)
+- **Build opportunities** -- hot niches with CIS market gaps that iFree can replicate
+- **Trend reports** -- where capital is flowing, which categories are heating up
 
-## Pipeline Architecture
+The key insight: **the same data stream powers two different lenses**. A YC-backed startup is both a potential investment AND a signal that its niche has no CIS analogue yet.
 
-9-stage dual-track funnel. Each stage is idempotent -- re-running skips already processed items.
+## How It Works
+
+9-stage dual-track funnel. Source-agnostic -- any parser feeds the same pipeline.
 
 ```
-[1/9] Parse DealPad HTML export         -> 1_ideas/*.md
-[2/9] Pre-filter (LLM classification)   -> filtered/passed in frontmatter
-[3/9] Triage (binary signals + route)   -> invest/build/both/skip route
-[4/9] Invest research (web search)      -> 2_research/{slug}/invest_research.md
-[5/9] Build research (web search)       -> 2_research/{slug}/build_research.md
-[6/9] Invest gate (evidence check)      -> gate_invest.md + invest_analysis_ready
-[7/9] Build gate (CIS gap + demand)     -> gate_build.md + build_analysis_ready
-[8/9] Deep analysis (heavy LLM)         -> 3_analysis/{slug}_analysis.md
-[9/9] Digest generation                 -> digests/{YYYY}-W{WW}_weekly.md
+Sources (DealPad, GitHub, HN, PH, vc.ru...)
+    ↓
+[1] Parse → 1_ideas/*.md (raw findings, Markdown + YAML frontmatter)
+[2] Pre-filter (LLM) → archive obvious rejects
+[3] Triage (8 binary questions) → route: invest / build / both / skip
+    ↓                                    ↓
+[4] Invest research (web search)    [5] Build research (web search: CIS gap, OSS)
+[6] Invest gate (evidence check)    [7] Build gate (CIS gap OR replicable+demand)
+    ↓                                    ↓
+[8] Deep analysis (heavy LLM, scoring per track)
+[9] Digest → digests/weekly, monthly
 ```
 
-Tracks are controlled via `config/triage.yaml` -> `pipeline_tracks`. Disabled tracks skip stages 4-8 entirely.
+**Human-in-the-loop at transitions.** Automation collects and analyzes. Humans decide what to research deeper. The pause between Ideas and Research filters hype -- after a week, the real signal becomes visible.
 
-## Quick Start
+## Current State (MVP)
+
+Single source (DealPad Telegram export), build track active. 430 startups per batch → 18 build candidates → 11 pass gate → scored and analyzed with CIS adaptation recommendations.
 
 ```bash
-# 1. Create venv
+# Quick start
 python -m venv venv && source venv/bin/activate
-
-# 2. Install dependencies
 pip install -r requirements.txt
-
-# 3. Configure
-cp .env.example .env
-# Edit .env: set OPENROUTER_API_KEY (required)
-
-# 4. Run pipeline
-python run_pipeline.py --html data/ChatExport_2026-04-13/messages.html
-
-# Fresh run (clear old ideas, parse only new export)
+cp .env.example .env   # set OPENROUTER_API_KEY
 python run_pipeline.py --html data/ChatExport_2026-04-13/messages.html --fresh
-
-# Re-run on same data (restore archive, strip fields)
-python run_pipeline.py --html data/ChatExport_2026-04-13/messages.html --reset
 ```
 
-## Configuration
+## Roadmap
 
-### Environment Variables (`.env`)
+### Phase 1: MVP Pipeline (DONE)
+Single source, dual-track architecture, web search research, config-driven track control, weekly digest.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for LLM calls |
-| `OPENROUTER_MODEL_LIGHT` | Yes | Cheap/fast model for triage, research (e.g. `google/gemini-2.5-flash`) |
-| `OPENROUTER_MODEL_HEAVY` | Yes | Strong model for deep analysis (e.g. `google/gemini-2.5-pro`) |
-| `SEARCH_BACKEND` | No | `ddg` (default, free) or `exa` (needs `EXA_API_KEY`) |
-| `EXA_API_KEY` | No | Only needed if `SEARCH_BACKEND=exa` |
+### Phase 2: Multi-Source + Delivery
+- **10+ parsers** covering global and Russian sources (GitHub Trending, HN, ProductHunt, Reddit, vc.ru, Telegram channels, YC Companies, RSS feeds)
+- **BaseScout pattern** -- each parser is a standalone file, failure of one doesn't block others
+- **Cross-source deduplication** -- same startup from 3 sources = multi_source signal bonus
+- **Telegram bot** -- morning digest delivery, `/top`, `/build`, `/status` commands
+- **Cron automation** -- parsers 3x/day, digest every morning
 
-### Pipeline Tracks (`config/triage.yaml`)
+### Phase 3: Research Quality + Architecture
+- **core/ abstraction layer** -- idea_store, research_store, analysis_store replace direct file ops
+- **GitHub API enrichment** -- stars, forks, contributors, commit activity for OSS assessment
+- **Incremental processing** -- only new ideas since last run
+- **Prompt versioning + cost tracking** per run
+- **Fake traction detection** -- stars spike without forks/issues, stars:forks >50:1
 
+### Phase 4: Production Polish
+- **Human-in-the-loop review UI** -- pause between triage and research for manual candidate selection
+- **Daily + weekly + monthly digest variants**
+- **Build opportunities monthly report** (ranked, with CIS market sizing)
+- **Founder tracker** -- monitor specific people's GitHub/LinkedIn activity
+- **YC Lookalike search** -- find CIS-replicable patterns in YC batches
+
+## Architecture
+
+### Three Folders = Entire Database
+```
+1_ideas/     → raw findings from all parsers
+2_research/  → enriched data per startup (web search + LLM synthesis)
+3_analysis/  → scoring, conclusions, CIS adaptation recommendations
+digests/     → cumulative weekly/monthly reports (never deleted by reset)
+```
+No databases, no servers. Markdown files under version control.
+
+### Config-Driven Tracks (`config/triage.yaml`)
 ```yaml
 pipeline_tracks:
-  build: true           # Run build research/gate/analysis
-  invest: false          # Run invest research/gate/analysis
-  include_both: false    # Include "both"-routed startups in enabled tracks
+  build: true        # CIS replication opportunities
+  invest: false       # Investment candidates
+  include_both: false # Include dual-routed startups
 ```
+Disabled tracks skip research, gate, and analysis stages entirely -- zero wasted API calls.
 
-### Search Backends
-
-Three backends with automatic fallback:
-
+### Web Search Backends
 | Backend | Cost | Quality | When |
 |---------|------|---------|------|
-| **DDG** (default) | Free | Good (snippets) | Always tried first |
-| **Sonar** (fallback) | ~$0.005/req | Good (AI-synthesized) | Auto when DDG returns nothing |
-| **Exa** (alternative) | ~$0.007/req | Best (full page text) | Manual via `SEARCH_BACKEND=exa` |
+| DDG (default) | Free | Good | Always tried first, retry 3x with backoff |
+| Sonar (fallback) | ~$0.005/req | Good (AI-synthesized) | Auto when DDG returns nothing |
+| Exa (alternative) | ~$0.007/req | Best (full page text) | `SEARCH_BACKEND=exa` |
 
-## Project Structure
+### LLM Integration
+OpenRouter API with two model tiers:
+- **Light** (Gemini Flash) -- triage, research synthesis, gate evaluation
+- **Heavy** (Gemini Pro) -- deep analysis, scoring, CIS adaptation assessment
 
-```
-StartupScanner/
-  1_ideas/              Raw findings from parser (Markdown + YAML frontmatter)
-  2_research/           Enriched data per startup (web search + LLM synthesis)
-  3_analysis/           Deep analysis with scoring and recommendations
-  digests/              Weekly/monthly digest reports (cumulative, never deleted)
-  _archive/             Pre-filtered ideas moved here
+### Key Design Decisions
+- **Idempotent stages** -- every stage checks for existing output. Safe to re-run, resume after crash.
+- **Prompts separated from code** -- all LLM prompts in `prompts/` folder, no hardcoded strings.
+- **Final file contracts from day 1** -- SCHEMA.md defines YAML frontmatter for all file types. No throwaway formats.
+- **Delay is a feature** -- the pause between Ideas and Research filters hype. Don't auto-promote.
 
-  scouts/               Source parsers (DealPad, future: GitHub, HN, PH...)
-  pipeline/             Pipeline stages (prefilter, triage, research, gate, analysis)
-  lib/                  Shared libraries (LLM client, web search, scraper, utils)
-  prompts/              LLM prompt templates (separate from code)
-  config/               YAML configuration (triage rules, scoring weights)
-  tests/                Smoke and integration tests
+## Build Mode Patterns
 
-  run_pipeline.py       Main orchestrator
-  THESIS.md             Investment thesis and focus areas
-  SCHEMA.md             YAML frontmatter contracts for all file types
-```
+What the system looks for in build track:
 
-## Key Design Decisions
+1. **YC trends → CIS adaptation** -- YC invests in N startups in category X, no Russian analogue exists
+2. **OSS with stars but no business** -- 10K+ stars, active dev, no company → white-label, managed hosting, enterprise version
+3. **Hot product + iFree audience = cross-sell** -- B2B product gaining traction that iFree's clients could use
+4. **Hot niche, no dominant CIS player** -- multiple small startups, growing market, no leader
 
-- **No database** -- Markdown files ARE the database. Everything under version control.
-- **Human-in-the-loop (planned)** -- Currently fully automated. Future: pause between triage and research for manual candidate selection.
-- **Idempotent stages** -- Each stage checks for existing output before processing. Safe to re-run.
-- **Config-driven** -- Track selection, scoring weights, gate thresholds all in YAML.
-- **Prompts separated from code** -- All LLM prompts in `prompts/` folder.
+## Investment Thesis
 
-## Scoring
-
-### Build Mode (8 criteria, 1-10 scale)
-- **BUILD** (>=8): Strong opportunity, begin development
-- **PARTNER** (6-7.9): Worth monitoring, potential partnership
-- **MONITOR** (4-5.9): Interesting niche, watch for signals
-- **SKIP** (<4): Not viable for CIS market
-
-### Invest Mode (10 criteria, 1-10 scale)
-- **INVEST** (>=8): Strong candidate, schedule meeting
-- **WATCH** (6-7.9): Monitor for progress
-- **PASS** (<6): Does not meet criteria
-
-## Development
-
-```bash
-# Run tests
-python -m pytest tests/ -v
-
-# Regenerate digest only (uses existing analysis)
-python -c "import asyncio; from pipeline.digest_generator import run_digest; asyncio.run(run_digest())"
-```
+Focus: AI/ML, fintech, gamedev, developer tools, infrastructure, automation.
+Geography: Russia + global. Check: $30K-$300K. Stage: seed / early growth.
+Key filter: **strong founders** -- team matters more than idea.
+Funnel: ~30 startups → 1-2 investments.
