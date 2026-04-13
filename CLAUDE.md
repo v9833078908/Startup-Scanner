@@ -33,6 +33,17 @@ Every phase — even the MVP with a single source — must use the target file s
 - `THESIS.md` fixes the investment thesis and focus areas as a standalone reference
 - `SCHEMA.md` defines the YAML frontmatter contracts for ideas, research profiles, and analysis files
 
+### Headless Core Evolution (Phase 2+)
+Starting from Phase 2, file access goes through `core/` layer — not direct filesystem operations:
+- `core/idea_store.py` — save/load/archive/list/exists for ideas
+- `core/dedup.py` — deduplication as standalone module
+- `core/research_store.py` — research folder creation, enrichment file writes (Phase 4)
+- `core/analysis_store.py` — scoring file read/write (Phase 5)
+- `core/digest_service.py` — digest generation as data structure (Phase 6)
+- `adapters/` — delivery adapters (Telegram, email) call core/, never read files directly (Phase 6)
+
+This keeps scripts + files + git architecture but prevents fragile direct coupling when UI, integrations, or new parsers are added later. Phase 1 MVP uses `lib/utils.py` directly — refactor to core/ happens in Phase 2.
+
 ## Core Rules
 
 1. **All parsers at once, not in phases.** 15 parsers in 2 days. Breadth of coverage from day one is fundamental. 15 simple parsers > 3 perfect ones.

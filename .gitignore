@@ -28,10 +28,17 @@ Thumbs.db
 _archive/
 digests/
 
+# Input data (exports, dumps, raw files)
+data/
+
 # Telethon sessions
 *.session
 *.session-journal
 
+# Logs
+logs/
+
 # Cache
 config/.hn_seen
 config/.telegram_state.json
+.omx/

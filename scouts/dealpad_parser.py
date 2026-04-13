@@ -1,4 +1,5 @@
 import datetime
+import logging
 import re
 import sys
 from pathlib import Path
@@ -7,6 +8,8 @@ from bs4 import BeautifulSoup
 import frontmatter
 
 from lib.utils import make_slug, parse_round_usd, parse_date
+
+log = logging.getLogger("scouts.dealpad")
 
 IDEAS_DIR = Path("1_ideas")
 
@@ -222,7 +225,7 @@ def parse_dealpad(html_input: str | Path) -> int:
             html_files = [html_path]
 
     if not html_files:
-        print(f"No HTML files found at {html_input}")
+        log.error("No HTML files found at %s", html_input)
         return 0
 
     all_ideas: list[dict] = []
@@ -230,9 +233,9 @@ def parse_dealpad(html_input: str | Path) -> int:
         all_ideas.extend(parse_html_file(html_file))
 
     saved = save_ideas(all_ideas)
-    print(
-        f"Parsed {len(all_ideas)} messages from {len(html_files)} file(s), "
-        f"saved {saved} new ideas"
+    log.info(
+        "Parsed %d messages from %d file(s), saved %d new ideas",
+        len(all_ideas), len(html_files), saved,
     )
     return saved
 

@@ -1,5 +1,7 @@
 import asyncio
+import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +10,8 @@ import yaml
 
 from lib.llm import call_llm, load_prompt
 from lib.utils import make_slug, load_idea
+
+log = logging.getLogger("pipeline.deep_analysis")
 
 IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
@@ -200,11 +204,12 @@ async def run_deep_analysis(slugs: list[str] | None = None) -> dict:
             analyze_one(post, slug, research_dir, prompt_template, weights)
         )
 
-    print(
-        f"Analyzing {len(analysis_tasks)} startups "
-        f"(skipping {skipped} already analyzed)..."
+    log.info(
+        "Analyzing %d startups (skipping %d already analyzed)",
+        len(analysis_tasks), skipped,
     )
 
+    t0 = time.monotonic()
     results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
 
     success_count = sum(1 for r in results if not isinstance(r, Exception))
@@ -212,9 +217,13 @@ async def run_deep_analysis(slugs: list[str] | None = None) -> dict:
 
     for r in results:
         if isinstance(r, Exception):
-            print(f"  ERROR: {r}")
+            log.error("analysis failed: %s", r)
 
-    print(f"Analysis complete: {success_count} analyzed, {fail_count} failed")
+    elapsed = time.monotonic() - t0
+    log.info(
+        "=== deep_analysis done in %.1fs — analyzed=%d failed=%d ===",
+        elapsed, success_count, fail_count,
+    )
 
     return {"analyzed": success_count, "failed": fail_count}
 
