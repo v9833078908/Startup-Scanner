@@ -104,7 +104,7 @@ StartupScanner/
 ## Key Design Decisions
 
 - **No database** -- Markdown files ARE the database. Everything under version control.
-- **Human-in-the-loop** -- Automation collects and analyzes. Humans decide what to research deeper.
+- **Human-in-the-loop (planned)** -- Currently fully automated. Future: pause between triage and research for manual candidate selection.
 - **Idempotent stages** -- Each stage checks for existing output before processing. Safe to re-run.
 - **Config-driven** -- Track selection, scoring weights, gate thresholds all in YAML.
 - **Prompts separated from code** -- All LLM prompts in `prompts/` folder.
