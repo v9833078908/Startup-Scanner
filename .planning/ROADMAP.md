@@ -34,6 +34,10 @@ Plans:
   - [ ] Cron: parsers 3x/day, digest every morning
   - [ ] 50+ ideas per full multi-source run
 - **Plans:** 0/0
+- **Notes (учесть при планировании):**
+  1. **Нормализация неструктурированных источников.** DealPad даёт готовые поля (имя, раунд, ссылка). RSS-статьи, Telegram-сообщения, Reddit-посты — сырой текст. Нужен этап извлечения: regex-шаблоны для типовых форматов + LLM-extraction как fallback. Решить до написания парсеров.
+  2. **Конфликт данных при мульти-источниках.** Один стартап на 3 источниках с разным описанием/раундом — кто "прав"? Текущий dedup просто пропускает дубли (первый записавший побеждает). Нужна стратегия enrichment: дополнять существующий файл данными из новых источников, а не игнорировать.
+  3. **Пустые поля — норма.** GitHub-стартап без раунда, HN без описания компании — допустимо. Pipeline должен корректно работать с null/empty в round_raw, round_usd, round_date. Проверить что prefilter и triage не ломаются на таких данных.
 
 ### Phase 3: Research Quality + Architecture
 - **Goal:** Real web search research (not LLM hallucination), clean architecture, incremental processing
