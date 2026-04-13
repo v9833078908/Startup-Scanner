@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from lib.exa_client import exa_search
+from lib.web_search import web_search
 from lib.llm import call_llm, load_prompt
 from lib.utils import load_idea, make_slug
 
@@ -15,8 +15,8 @@ IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
 
 
-def format_exa_results(results: list[dict]) -> str:
-    """Format Exa search results into readable text for prompt injection."""
+def format_search_results(results: list[dict]) -> str:
+    """Format search results into readable text for prompt injection."""
     if not results:
         return "(No web search results found)"
     lines = []
@@ -37,7 +37,7 @@ def _section(title: str, value) -> str:
 
 
 async def research_one_build(post, slug: str) -> dict:
-    """Research one startup for build track using Exa search."""
+    """Research one startup for build track using web search."""
     research_dir = RESEARCH_DIR / slug
     research_dir.mkdir(parents=True, exist_ok=True)
 
@@ -45,27 +45,27 @@ async def research_one_build(post, slug: str) -> dict:
     category = post.get("category", post.get("sector", "technology"))
     description = post.content or ""
 
-    # Step 1: Exa search for CIS competitors
+    # Step 1: Web search for CIS competitors
     cis_queries = [
         f"{category} Россия",
         f"{category} аналог CIS",
     ]
     cis_results = []
     for q in cis_queries:
-        results = await asyncio.to_thread(exa_search, q, num_results=3)
+        results = await web_search(q, num_results=5)
         cis_results.extend(results)
 
-    # Step 2: Exa search for OSS alternatives
+    # Step 2: Web search for OSS alternatives
     oss_queries = [
         f"{name} open source alternative github",
     ]
     oss_results = []
     for q in oss_queries:
-        results = await asyncio.to_thread(exa_search, q, num_results=3)
+        results = await web_search(q, num_results=5)
         oss_results.extend(results)
 
-    cis_text = format_exa_results(cis_results)
-    oss_text = format_exa_results(oss_results)
+    cis_text = format_search_results(cis_results)
+    oss_text = format_search_results(oss_results)
 
     # Step 3: LLM synthesis
     prompt_template = load_prompt("build_research")
@@ -74,8 +74,8 @@ async def research_one_build(post, slug: str) -> dict:
         .replace("{name}", str(name))
         .replace("{category}", str(category))
         .replace("{description}", str(description)[:2000])
-        .replace("{exa_cis_results}", cis_text)
-        .replace("{exa_oss_results}", oss_text)
+        .replace("{cis_search_results}", cis_text)
+        .replace("{oss_search_results}", oss_text)
     )
 
     result = await call_llm(
@@ -105,8 +105,9 @@ async def research_one_build(post, slug: str) -> dict:
     build_research_path = research_dir / "build_research.md"
     build_research_path.write_text(
         f"# Build Research: {name}\n\n"
-        f"> Based on Exa web search ({len(cis_results)} CIS results, "
-        f"{len(oss_results)} OSS results). "
+        f"> Based on web search ({len(cis_results)} CIS results, "
+        f"{len(oss_results)} OSS results, "
+        f"backends: {','.join(set(r.get('backend', '?') for r in cis_results + oss_results))}). "
         f"Generated {datetime.utcnow().isoformat()}\n\n"
         f"{body}",
         encoding="utf-8",

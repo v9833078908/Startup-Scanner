@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from lib.exa_client import exa_search
+from lib.web_search import web_search
 from lib.llm import call_llm, load_prompt
 from lib.scraper import scrape_website
 from lib.utils import load_idea, make_slug
@@ -16,8 +16,8 @@ IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
 
 
-def format_exa_results(results: list[dict]) -> str:
-    """Format Exa search results into readable text for prompt injection."""
+def format_search_results(results: list[dict]) -> str:
+    """Format search results into readable text for prompt injection."""
     if not results:
         return "(No web search results found)"
     lines = []
@@ -38,7 +38,7 @@ def _section(title: str, value) -> str:
 
 
 async def research_one_invest(post, slug: str) -> dict:
-    """Research one startup for invest track using Exa search."""
+    """Research one startup for invest track using web search."""
     research_dir = RESEARCH_DIR / slug
     research_dir.mkdir(parents=True, exist_ok=True)
 
@@ -59,17 +59,17 @@ async def research_one_invest(post, slug: str) -> dict:
             encoding="utf-8",
         )
 
-    # Step 2: Exa search for invest-relevant data (run sync SDK in thread)
+    # Step 2: Web search for invest-relevant data
     queries = [
         f'"{name}" founders team',
         f'"{name}" funding traction revenue',
     ]
-    all_exa_results = []
+    all_results = []
     for q in queries:
-        results = await asyncio.to_thread(exa_search, q, num_results=3)
-        all_exa_results.extend(results)
+        results = await web_search(q, num_results=5)
+        all_results.extend(results)
 
-    exa_text = format_exa_results(all_exa_results)
+    search_text = format_search_results(all_results)
 
     # Step 3: LLM synthesis from Exa results + website
     prompt_template = load_prompt("invest_research")
@@ -80,7 +80,7 @@ async def research_one_invest(post, slug: str) -> dict:
         .replace("{round_raw}", str(round_raw))
         .replace("{description}", str(description)[:2000])
         .replace("{website_content}", website_text[:3000])
-        .replace("{exa_results}", exa_text)
+        .replace("{search_results}", search_text)
     )
 
     result = await call_llm(
@@ -110,14 +110,16 @@ async def research_one_invest(post, slug: str) -> dict:
     invest_research_path = research_dir / "invest_research.md"
     invest_research_path.write_text(
         f"# Invest Research: {name}\n\n"
-        f"> Based on Exa web search ({len(all_exa_results)} results) "
+        f"> Based on web search ({len(all_results)} results, "
+        f"backends: {','.join(set(r.get('backend', '?') for r in all_results))}) "
         f"and website scrape. Generated {datetime.utcnow().isoformat()}\n\n"
         f"{body}",
         encoding="utf-8",
     )
 
-    log.info("Invest research done for %s (%d Exa results)", slug, len(all_exa_results))
-    return {"slug": slug, "exa_results": len(all_exa_results), "status": "ok"}
+    backends_used = set(r.get("backend", "?") for r in all_results)
+    log.info("Invest research done for %s (%d results via %s)", slug, len(all_results), ",".join(backends_used))
+    return {"slug": slug, "web_results": len(all_results), "status": "ok"}
 
 
 async def run_invest_research(slugs: list[str]) -> dict:
