@@ -6,17 +6,21 @@ You are a market research analyst evaluating whether a product category represen
 **Category:** {category}
 **Description:** {description}
 
-## CIS Competitor Search Results (from Exa)
+## CIS Competitor Search Results
 
-{exa_cis_results}
+{cis_search_results}
 
-## Open-Source Alternative Search Results (from Exa)
+## Open-Source Alternative Search Results
 
-{exa_oss_results}
+{oss_search_results}
 
 ## Calibration
 
-The Exa results above are real web search results. Base your analysis only on what is actually found. If no CIS competitors were found, that IS a signal of a gap -- state it clearly. Do not fabricate companies or projects not mentioned in the search results.
+The search results above may come from different backends:
+- **Raw web search results** (marked with backend "ddg" or "exa"): Real web page snippets. Base analysis only on what is actually found. If no CIS competitors were found, that IS a signal of a gap -- state it clearly.
+- **AI-synthesized summaries** (marked with [Sonar]): Pre-digested by another AI. Treat as directional leads. Do not fabricate companies or projects based solely on synthesized summaries without corroboration.
+
+Do not fabricate companies or projects not mentioned in the search results.
 
 ## Task
 

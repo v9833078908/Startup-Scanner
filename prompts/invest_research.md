@@ -11,13 +11,17 @@ You are a startup research analyst. Synthesize invest-relevant research from rea
 
 {website_content}
 
-## Web Search Results (from Exa)
+## Web Search Results
 
-{exa_results}
+{search_results}
 
 ## Calibration
 
-The Exa search results above are from real web pages. If the results are mostly irrelevant or empty, state "insufficient data" for those fields rather than fabricating information. Only report what is actually found in the provided sources.
+The search results above may come from different backends:
+- **Raw web search results** (marked with backend "ddg" or "exa"): These are real web page snippets. Extract specific facts, names, numbers. If results are mostly irrelevant or empty, state "insufficient data" rather than fabricating.
+- **AI-synthesized summaries** (marked with [Sonar]): These are pre-digested by another AI. Treat them as leads, not primary sources -- cross-reference claims against the website content above when possible. Flag if the summary contradicts the website content.
+
+Only report what is actually found in the provided sources. When evidence is thin, say so explicitly.
 
 ## Task
 
