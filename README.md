@@ -13,21 +13,24 @@ The key insight: **the same data stream powers two different lenses**. A YC-back
 
 ## How It Works
 
-9-stage dual-track funnel. Source-agnostic -- any parser feeds the same pipeline.
+10-stage build-track funnel with deep research. Source-agnostic -- any parser feeds the same pipeline.
 
 ```
 Sources (DealPad, GitHub, HN, PH, vc.ru...)
     ↓
-[1] Parse → 1_ideas/*.md (raw findings, Markdown + YAML frontmatter)
-[2] Pre-filter (LLM) → archive obvious rejects
-[3] Triage (8 binary questions) → route: invest / build / both / skip
+[1]  Parse → 1_ideas/*.md (raw findings, Markdown + YAML frontmatter)
+[2]  Pre-filter (LLM) → archive obvious rejects
+[3]  Triage (8 binary questions) → route: invest / build / both / skip
     ↓                                    ↓
-[4] Invest research (web search)    [5] Build research (web search: CIS gap, OSS)
-[6] Invest gate (evidence check)    [7] Build gate (CIS gap OR replicable+demand)
+[4]  Invest research (web search)   [5] Build research (web search: CIS gap, OSS)
+[6]  Invest gate (evidence check)   [7] Build gate (CIS gap OR replicable+demand)
+                                    [7.5] Deep Research via Parallel AI (autonomous research, citations)
     ↓                                    ↓
-[8] Deep analysis (heavy LLM, scoring per track)
-[9] Digest → digests/weekly, monthly
+[8]  Deep analysis (heavy LLM, BUILD-ONLY in Phase 2: kill signals + executive summary)
+[9]  Digest (deterministic-first: byte-for-byte executive summaries + narrow LLM synthesis) → digests/weekly, monthly
 ```
+
+> **Phase 2 temporary limitation:** Invest deep analysis is not supported in Phase 2 — it will be re-added in a future phase with a separate prompt. Setting `pipeline_tracks.invest=true` triggers a `SystemExit` at the deep_analysis step (honest-failure pattern: anchoring-bias risk if invest+build share an LLM context).
 
 **Human-in-the-loop at transitions.** Automation collects and analyzes. Humans decide what to research deeper. The pause between Ideas and Research filters hype -- after a week, the real signal becomes visible.
 

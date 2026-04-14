@@ -22,6 +22,7 @@ from pipeline.invest_research import run_invest_research
 from pipeline.build_research import run_build_research
 from pipeline.invest_gate import run_invest_gate
 from pipeline.build_gate import run_build_gate
+from pipeline.deep_research_v2 import run_deep_research_v2
 from pipeline.deep_analysis import run_deep_analysis
 from pipeline.digest_generator import run_digest
 
@@ -155,20 +156,20 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
         log.info("=== Resetting pipeline state (fresh=%s) ===", fresh)
         do_reset(fresh=fresh)
 
-    log.info("=== Startup Scouting Pipeline (9-stage dual-track funnel) ===")
+    log.info("=== Startup Scouting Pipeline (10-stage build-track funnel with deep research) ===")
     log.info("Input: %s", html_path)
     total_start = time.monotonic()
 
-    # [1/9] Parse DealPad
-    log.info("[1/9] Parsing DealPad HTML export...")
+    # [1/10] Parse DealPad
+    log.info("[1/10] Parsing DealPad HTML export...")
     parsed_count = parse_dealpad(html_path)
 
-    # [2/9] Pre-filter (LLM classification)
-    log.info("[2/9] Applying pre-filter (LLM classification)...")
+    # [2/10] Pre-filter (LLM classification)
+    log.info("[2/10] Applying pre-filter (LLM classification)...")
     filter_result = await run_prefilter()
 
-    # [3/9] Triage (binary evidence signals + route)
-    log.info("[3/9] Triage (binary evidence signals)...")
+    # [3/10] Triage (binary evidence signals + route)
+    log.info("[3/10] Triage (binary evidence signals)...")
     triage_result = await run_triage()
 
     # Load track config — controls which tracks run (research + gate + analysis)
@@ -208,40 +209,54 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
         if not route_dist:
             route_dist[route] = route_dist.get(route, 0) + 1
 
-    # [4/9] Invest research (invest/both-routed only)
+    # [4/10] Invest research (invest/both-routed only)
     if invest_enabled:
-        log.info("[4/9] Invest research (%d startups)...", len(invest_slugs))
+        log.info("[4/10] Invest research (%d startups)...", len(invest_slugs))
         invest_research_result = await run_invest_research(invest_slugs)
     else:
-        log.info("[4/9] Invest research — SKIPPED (pipeline_tracks.invest=false)")
+        log.info("[4/10] Invest research — SKIPPED (pipeline_tracks.invest=false)")
         invest_research_result = {"researched": 0, "failed": 0, "skipped": 0}
 
-    # [5/9] Build research (build/both-routed only)
+    # [5/10] Build research (build/both-routed only)
     if build_enabled:
-        log.info("[5/9] Build research (%d startups)...", len(build_slugs))
+        log.info("[5/10] Build research (%d startups)...", len(build_slugs))
         build_research_result = await run_build_research(build_slugs)
     else:
-        log.info("[5/9] Build research — SKIPPED (pipeline_tracks.build=false)")
+        log.info("[5/10] Build research — SKIPPED (pipeline_tracks.build=false)")
         build_research_result = {"researched": 0, "failed": 0, "skipped": 0}
 
-    # [6/9] Invest gate (analysis readiness for invest track)
+    # [6/10] Invest gate (analysis readiness for invest track)
     if invest_enabled:
-        log.info("[6/9] Invest gate (%d startups)...", len(invest_slugs))
+        log.info("[6/10] Invest gate (%d startups)...", len(invest_slugs))
         invest_gate_result = await run_invest_gate(invest_slugs)
     else:
-        log.info("[6/9] Invest gate — SKIPPED (pipeline_tracks.invest=false)")
+        log.info("[6/10] Invest gate — SKIPPED (pipeline_tracks.invest=false)")
         invest_gate_result = {"ready": 0, "filtered": 0, "invest_analysis_ready_slugs": []}
 
-    # [7/9] Build gate (analysis readiness for build track)
+    # [7/10] Build gate (analysis readiness for build track)
     if build_enabled:
-        log.info("[7/9] Build gate (%d startups)...", len(build_slugs))
+        log.info("[7/10] Build gate (%d startups)...", len(build_slugs))
         build_gate_result = await run_build_gate(build_slugs)
     else:
-        log.info("[7/9] Build gate — SKIPPED (deep_analysis.build=false)")
+        log.info("[7/10] Build gate — SKIPPED (deep_analysis.build=false)")
         build_gate_result = {"ready": 0, "filtered": 0, "build_analysis_ready_slugs": []}
 
     invest_ready = invest_gate_result.get("invest_analysis_ready_slugs", [])
     build_ready = build_gate_result.get("build_analysis_ready_slugs", [])
+
+    # [7.5/10] Deep Research via Parallel AI (build-track only, gate-passed)
+    if build_enabled and build_ready:
+        log.info(
+            "[7.5/10] Deep Research via Parallel AI (%d startups)...",
+            len(build_ready),
+        )
+        deep_research_result = await run_deep_research_v2(build_ready)
+    else:
+        log.info(
+            "[7.5/10] Deep Research — SKIPPED "
+            "(no build-ready startups or build track off)"
+        )
+        deep_research_result = {"researched": 0, "failed": 0, "skipped": 0}
 
     all_analysis_ready = []
 
@@ -258,8 +273,25 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
 
     all_analysis_ready = list(dict.fromkeys(all_analysis_ready))  # dedupe
 
+    # Phase 2 deep_analysis is BUILD-ONLY.
+    # If invest track is enabled AND has gate-passed invest startups, fail loudly —
+    # invest deep analysis is not supported until a future phase adds a separate
+    # prompt + LLM call. Silent build-scoring on invest candidates would be wrong.
+    if invest_enabled and invest_ready:
+        log.error(
+            "Invest deep analysis is not supported in Phase 2 (build-only). "
+            "%d invest-routed startups would be silently scored on build criteria. "
+            "To proceed: set pipeline_tracks.invest=false in config/triage.yaml, "
+            "OR wait for the future phase that adds invest_analysis.",
+            len(invest_ready),
+        )
+        raise SystemExit(
+            "Phase 2 build-only deep_analysis cannot run with invest track enabled. "
+            "See log for details."
+        )
+
     log.info(
-        "[8/9] Deep analysis (%d startups: %s build-ready, %s invest-ready, config: build=%s invest=%s top_n=%s)...",
+        "[8/10] Deep analysis (%d startups: %s build-ready, %s invest-ready, config: build=%s invest=%s top_n=%s)...",
         len(all_analysis_ready),
         len(build_ready) if build_enabled else "off",
         len(invest_ready) if invest_enabled else "off",
@@ -269,8 +301,8 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
     )
     analysis_result = await run_deep_analysis(slugs=all_analysis_ready)
 
-    # [9/9] Digest generation
-    log.info("[9/9] Generating weekly digest...")
+    # [9/10] Digest generation
+    log.info("[9/10] Generating weekly digest...")
     digest_result = await run_digest()
 
     # Auto-commit digest so it can always be recovered
@@ -316,6 +348,7 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
     log.info("  Build research: %s", build_research_result.get("researched", "?"))
     log.info("  Invest gate: %s ready", invest_gate_result.get("ready", "?"))
     log.info("  Build gate: %s ready", build_gate_result.get("ready", "?"))
+    log.info("  Deep research (Parallel AI): %s", deep_research_result.get("researched", "?"))
     log.info("  Analysis: %s (merged)", analysis_result.get("analyzed", "?"))
     log.info("  Digest: %s", digest_result.get("digest_path", "?"))
     log.info("--- LLM Usage ---")
@@ -328,7 +361,7 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run the startup scouting pipeline end-to-end (9-stage dual-track funnel)"
+        description="Run the startup scouting pipeline end-to-end (10-stage build-track funnel with deep research)"
     )
     parser.add_argument(
         "--html",
