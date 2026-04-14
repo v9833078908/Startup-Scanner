@@ -459,22 +459,22 @@ When running `python -m pipeline.deep_analysis` directly (for debugging), the fa
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `output.basis` ever have a flat structure instead of nested?**
    - What we know: OpenAPI spec shows nested `citations` inside each `basis_item`
    - What's unclear: Whether the text output schema (`type: "text"`) produces a different `basis` structure than JSON schema outputs
-   - Recommendation: Log the full `output` dict for the first successful task run; verify structure before writing production extraction code
+   - **RESOLVED:** Plan 02-01 implements two-level iteration per OpenAPI spec (the safer assumption). Executor MUST log the full `output` dict on the first successful task run to confirm structure. If the structure turns out to be flat in practice, the iteration code degrades gracefully (inner loop yields nothing on missing `citations` key).
 
 2. **Is `category` field available in idea frontmatter for the deep research brief?**
    - What we know: `build_research.py` uses `post.get("category", post.get("sector", "technology"))` [VERIFIED: line 45]
    - What's unclear: Whether `category` is populated after triage for all build-routed startups
-   - Recommendation: Use the same fallback pattern in `deep_research_v2.py`
+   - **RESOLVED:** Use the same fallback pattern in `deep_research_v2.py`: `post.get("category", post.get("sector", "technology"))`. Plan 02-01 Task 2 follows build_research.py reference pattern.
 
 3. **Gemini 2.5 Pro context window for analysis prompt with 8000-char deep_research content**
    - What we know: Gemini 2.5 Pro has 1M token context window [ASSUMED from training knowledge]
    - Risk if wrong: Low — even a 128K context window handles ~14,000 chars of input trivially
-   - Recommendation: No action needed; not a real risk
+   - **RESOLVED:** Non-issue at any reasonable context window size. No action needed.
 
 ---
 
