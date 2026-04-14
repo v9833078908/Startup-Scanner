@@ -20,20 +20,23 @@ Plans:
 - [x] 01-10 — 9-stage dual-track pipeline wiring
 - [x] 01-11 — Web search abstraction (DDG/Exa/Sonar)
 
-### Phase 2: Deep Research + Pipeline Quality Upgrade
+### Phase 2: Deep Research + Pipeline Quality Upgrade (BUILD-ONLY)
 - **Goal:** Add Deep Research stage (7.5) via Parallel AI Task API, upgrade Deep Analysis (Stage 8) with kill signals + executive summaries, upgrade Digest (Stage 9) for informative management-ready output
 - **Depends on:** Phase 1
 - **Context:** Meeting 2026-04-13 — Дина: текущая выдача "пустые звуки", катастрофически мало информации для управленческих решений. Нужны executive summaries по каждому стартапу, суть бизнеса, TAM, конкуренты, time to market. Убрать числовой скоринг из дайджеста. Бюджет: ~$50/нед на платные API.
+- **TEMPORARY LIMITATION:** Phase 2 deep_analysis is BUILD-ONLY. Invest deep analysis is not supported — `pipeline_tracks.invest=true` will trigger SystemExit at the deep_analysis step. Reason: anchoring bias when invest+build scoring share an LLM context. Invest mode will return in a future phase as a separate prompt + LLM call.
+- **Verdict Taxonomy (canonical):** `build_verdict ∈ {BUILD, PARTNER, MONITOR, SKIP}` (4 values, no PASS, no WATCH). Killed startups use a separate `killed: bool` + `kill_reason: str` flag — verdict label is never overloaded.
 - **Success Criteria:**
   - [ ] `lib/parallel_client.py` — async client for Parallel AI Task API (create task, poll result)
-  - [ ] `pipeline/deep_research_v2.py` — Stage 7.5: deep research for gate-passed startups via Parallel AI
+  - [ ] `pipeline/deep_research_v2.py` — Stage 7.5: deep research for gate-passed startups via Parallel AI (canonical name with `_v2` suffix; legacy `deep_research.py` kept for backward compat until Phase 4 cleanup)
   - [ ] `prompts/deep_research_brief.md` — research brief prompt (суть бизнеса, TAM, конкуренты, traction, build assessment, география)
   - [ ] Output: `2_research/{slug}/deep_research.md` with citations
-  - [ ] Updated `pipeline/deep_analysis.py` — reads deep_research.md, kill signals before scoring, executive summary output
-  - [ ] Updated `prompts/deep_analysis.md` — kill signals (рынок занят, высокий капитал, далеко от компетенций, >6мес до выручки) + executive summary format
-  - [ ] Updated `config/scoring_weights.yaml` — build mode criteria aligned with new doc
-  - [ ] Updated `pipeline/digest_generator.py` — executive summaries in digest, no numeric scores, PASS with kill-signal reason
-  - [ ] Updated `prompts/digest.md` — new sections: BUILD recommendations, WATCH/MONITOR detail, PASS transparency, trends
+  - [ ] Updated `pipeline/deep_analysis.py` — BUILD-ONLY: reads deep_research.md, kill signals, executive summary, no invest scoring
+  - [ ] Updated `prompts/deep_analysis.md` — kill signals (рынок занят, высокий капитал, далеко от компетенций, >6мес до выручки) + executive summary format + build-only scoring
+  - [ ] Updated `config/scoring_weights.yaml` — build mode criteria aligned with new doc; invest_mode untouched (preserved for future)
+  - [ ] Updated `pipeline/digest_generator.py` — DETERMINISTIC-FIRST: Python composes per-startup sections (BUILD/MONITOR/PASS) with byte-for-byte executive_summary insertion; LLM only for narrow Key Findings + Trends synthesis
+  - [ ] Updated `prompts/digest.md` — narrow scope: outputs only `{key_findings, trends}` JSON
+  - [ ] Updated `run_pipeline.py` — Stage 7.5 wiring + honest invest guard (SystemExit if invest enabled)
   - [ ] `PARALLEL_API_KEY` env var documented
   - [ ] Full pipeline run produces informative digest for management
 - **Plans:** 3 plans

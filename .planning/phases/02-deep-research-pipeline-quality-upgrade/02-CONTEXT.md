@@ -28,7 +28,7 @@ Deliverable: full pipeline run producing a management-ready digest with executiv
 - Budget constraint: ~$50/week for ~20 startups → ~$2.50/startup max
 
 ### Stage 7.5: Deep Research
-- New file: `pipeline/deep_research.py`
+- **Canonical module name:** `pipeline/deep_research_v2.py` (NOT `deep_research.py` — legacy file with that name exists from Phase 01-04, kept for backward compat). The `_v2` suffix is the official permanent name for Phase 2; rename only happens during Phase 4 cleanup.
 - New file: `lib/parallel_client.py` — async wrapper for Parallel AI Task API
 - New prompt: `prompts/deep_research_brief.md`
 - Research scope per startup: бизнес-суть, TAM, конкуренты (глобальные + целевые рынки), traction/валидация, build assessment (техническая сложность, time to MVP, time to revenue, риски), рекомендация по географии
@@ -36,12 +36,19 @@ Deliverable: full pipeline run producing a management-ready digest with executiv
 - Only runs for startups that passed build gate (~11-20 from ~400)
 - Idempotent: skip if deep_research.md already exists
 - Concurrency: asyncio with semaphore (e.g., 3-5 concurrent)
+- **Accepted limitation:** Failed Parallel AI calls write a stub `(Deep research failed: ...)` to deep_research.md. Re-runs skip stubs (idempotency). To retry: manually delete the stub file before re-running. This is a known limitation accepted for Phase 2; auto-retry deferred to Phase 4.
 
-### Stage 8: Deep Analysis Update
+### Verdict Taxonomy (CANONICAL — used in code, prompts, frontmatter, digest)
+- `build_verdict` ∈ `{BUILD, PARTNER, MONITOR, SKIP}` — 4 values only, no PASS overload
+- `killed: bool` + `kill_reason: str` — separate flags, NEVER folded into build_verdict
+- A killed startup keeps its computed `build_verdict` (e.g. could be BUILD on numbers) but is filtered out of BUILD/PARTNER/MONITOR digest sections by `killed=True` check. Shown only in "PASS via kill signal" section.
+- Digest verdict labels match exactly: `BUILD`, `PARTNER`, `MONITOR`, `SKIP`. WATCH never appears (it was an invest-track label removed in build-only architecture).
+
+### Stage 8: Deep Analysis Update (BUILD-ONLY)
 - Modify existing `pipeline/deep_analysis.py`
 - Update prompt: `prompts/deep_analysis.md`
 - NEW: Read `deep_research.md` as primary input (instead of scarce research notes)
-- NEW: Kill signals checked BEFORE scoring — if any triggered → verdict PASS immediately:
+- NEW: Kill signals checked BEFORE scoring — if any triggered, set `killed=True`, `kill_reason="..."` but STILL compute build_verdict (informational). The killed flag controls digest routing, not the verdict label. Four signals:
   1. Рынок занят — сильный локальный игрок >30% доли на целевом рынке
   2. Высокий капитал на вход — значительные инвестиции для MVP (инфраструктура, лицензии, hardware)
   3. Далеко от компетенций i-Free — requires biotech, hardware, deep domain expertise
@@ -55,19 +62,22 @@ Deliverable: full pipeline run producing a management-ready digest with executiv
   - Ключевые риски (2-3)
   - Вердикт + одно предложение почему
 - Scoring backend preserved (in md files), NOT shown in digest output
-- Kill signal results stored in frontmatter: `killed: true/false`, `kill_reason: "..."`
 
-### Stage 9: Digest Update
+### Stage 9: Digest Update — DETERMINISTIC-FIRST
 - Modify existing `pipeline/digest_generator.py`
-- Update prompt: `prompts/digest.md`
-- Executive summaries from Stage 8 go directly into digest (not re-synthesized)
-- No numeric scoring in digest output
-- PASS startups shown with kill-signal reason (transparency)
-- WATCH/MONITOR: 2-3 informative sentences (not one-liners)
-- Sections: Pipeline Summary, Ключевые находки, BUILD рекомендации, WATCH/MONITOR, PASS с kill-сигналами, Тренды недели
+- Update prompt: `prompts/digest.md` (now narrow scope — only Key Findings + Trends sections)
+- **Deterministic sections (Python templates, no LLM):** Pipeline Summary, BUILD Recommendations (paste executive_summary byte-for-byte), MONITOR (paste executive_summary or 2-3 sentences from analysis), PASS via kill signals (table: name + kill_reason).
+- **LLM sections (narrow scope only):** "Ключевые находки недели" (synthesis across all startups, 2-3 sentences) + "Тренды недели" (top categories + patterns). LLM never touches per-startup executive summaries.
+- No numeric scoring anywhere in digest output
+- Sections: Pipeline Summary → Ключевые находки → BUILD рекомендации → MONITOR → PASS via kill → Тренды недели
+- Rationale: original LLM-first path violates the "executive summaries go directly, not re-synthesized" promise. Deterministic-first guarantees Stage 8 wording survives intact.
+
+### Orchestrator: Honest Track Configuration
+- run_pipeline.py MUST raise (or log error + force build-only) if `pipeline_tracks.invest: true` AND `pipeline_tracks.build` AND deep_analysis is run. Phase 2 deep_analysis.py is BUILD-ONLY by design — silently running it on invest-routed startups would produce build scoring on invest candidates. Honest failure is better than silent confusion.
+- ROADMAP.md and README.md must explicitly state: "Invest deep analysis temporarily not supported in Phase 2 — will be re-added with separate prompt in future phase."
 
 ### Config Updates
-- `config/scoring_weights.yaml`: build_mode criteria aligned with new weights table (same weights, same criteria)
+- `config/scoring_weights.yaml`: build_mode criteria aligned with new weights table (same weights, same criteria); invest_mode preserved untouched for future
 - `config/triage.yaml`: no changes
 - `.env`: add `PARALLEL_API_KEY` documentation
 
