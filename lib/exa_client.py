@@ -17,13 +17,17 @@ def get_exa_client() -> Exa:
 def exa_search(
     query: str,
     num_results: int = 5,
-    search_type: str = "auto",
+    search_type: str = "instant",
     start_date: str | None = None,
 ) -> list[dict]:
     """Search Exa and return list of {title, url, text} dicts.
 
     Uses synchronous Exa SDK (exa-py is sync).
     Returns empty list on failure -- never raises.
+
+    search_type: "instant" (default, <150ms), "auto", "fast", "deep", "neural", "keyword".
+    Instant is optimized neural with sub-150ms latency — fastest option that still
+    returns full text content.
 
     start_date: optional ISO date (YYYY-MM-DD) passed as start_published_date
     to Exa's recency filter.

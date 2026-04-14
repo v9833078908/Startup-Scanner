@@ -82,10 +82,29 @@ async def call_llm(
                 if not json_mode:
                     return raw
 
-                # Strip markdown code fences
-                cleaned = re.sub(
-                    r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE
-                )
+                # Extract JSON: handle three common LLM response shapes:
+                #  1. Pure JSON: '{...}'
+                #  2. Fenced JSON: '```json\n{...}\n```' (sometimes followed by prose)
+                #  3. JSON + trailing prose: '{...}\n\nAnalysis: ...' (Haiku tends to do this)
+                cleaned = raw.strip()
+                # Try fenced JSON first (greedy on opening, lazy on closing)
+                m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, flags=re.DOTALL)
+                if m:
+                    cleaned = m.group(1)
+                else:
+                    # Fall back to first balanced top-level JSON object
+                    start = cleaned.find("{")
+                    if start >= 0:
+                        depth = 0
+                        for i in range(start, len(cleaned)):
+                            c = cleaned[i]
+                            if c == "{":
+                                depth += 1
+                            elif c == "}":
+                                depth -= 1
+                                if depth == 0:
+                                    cleaned = cleaned[start : i + 1]
+                                    break
                 try:
                     return json.loads(cleaned)
                 except json.JSONDecodeError:
