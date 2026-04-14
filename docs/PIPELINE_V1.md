@@ -30,7 +30,7 @@ LLM отвечает на бинарные вопросы по каждому с
 
 **325 → 20 build, 147 invest, 74 both, 84 skip**
 
-Сейчас invest=off, include_both=off в конфиге → в research идут только 20 build.
+Сейчас invest=off, include_both=on в конфиге → в research идут 94 (20 build + 74 both).
 
 ### [4/9] Invest Research — SKIP
 Выключен в `config/triage.yaml` → `pipeline_tracks.invest: false`.

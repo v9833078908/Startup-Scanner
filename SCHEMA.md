@@ -23,13 +23,15 @@ review_needed: bool|null   # true if LLM classification failed (fallback applied
 invest_eligible: bool      # sector_match yes/partial + is_tech (round is scoring factor, not gate)
 build_eligible: bool       # sector_match yes/partial + software/service/unknown + is_tech
 # Added by triage (binary evidence signals — NOT numeric scores):
-invest_priority: string    # "high" / "medium" / "low" — from 4 binary signal count
+invest_priority: string    # "high" / "medium" / "low" — from 3 binary signal count
 build_candidate: bool      # type-level filter: is_tech + software/service + sector_match
 has_product_evidence: bool  # Does description mention users, revenue, integrations?
-has_founder_signal: bool    # Does description mention founder credentials?
+# (has_founder_signal removed 2026-04-13 — DealPad almost never contains founder data)
 barriers: list[string]     # 2-3 specific barriers/risks identified by LLM
 one_liner: string|null     # 1-sentence summary (Russian)
 category: string|null      # Specific niche string (e.g., "AI code review")
+build_thesis: string|null  # 1-sentence English thesis: gap + buyer + adaptation, or "no thesis"
+build_reject_reasons: list[string]  # rules from build_candidate_requires that failed (only when build_candidate=false)
 # Added by research gate (legacy unified gate, after research enrichment):
 analysis_ready: bool       # Legacy: has enough evidence for deep analysis (pre-dual-track)
 build_priority: string     # "high" (rare signal found / oss base available) / "medium" (no rare signal)
@@ -65,7 +67,8 @@ Directory per startup. Files:
 - `web_research.md` — LLM-synthesized research summary (founders, business model, competitors, traction, risks)
 - `gate.md` — legacy unified research gate evaluation results
 - `invest_research.md` — Exa-powered invest research (founders, traction, funding)
-- `build_research.md` — Exa-powered build research (CIS competitors, OSS, market)
+- `build_research.md` — bucketed web-search build research. Sections: CIS Players, Demand Signal, Global Alternatives, OSS Base, Community, Replication Assessment, Risks.
+- `build_research_raw.json` — structured bucket results (CIS_PLAYERS, DEMAND_SIGNAL, GLOBAL_ALT, OSS_BASE, COMMUNITY) with per-bucket query, timelimit, count, and raw snippets. DEMAND_SIGNAL also carries `ru_landing_count` (integer) used by the build_gate mechanical override (≥3 forces cis_gap_confirmed=false).
 - `gate_invest.md` — invest gate evaluation (team/traction/competitive evidence check)
 - `gate_build.md` — build gate evaluation (CIS gap, replicability, market demand)
 - `profile.md` (future: full profile from TEMPLATE_profile.md)

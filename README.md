@@ -85,7 +85,7 @@ No databases, no servers. Markdown files under version control.
 pipeline_tracks:
   build: true        # CIS replication opportunities
   invest: false       # Investment candidates
-  include_both: false # Include dual-routed startups
+  include_both: true  # Include dual-routed startups
 ```
 Disabled tracks skip research, gate, and analysis stages entirely -- zero wasted API calls.
 

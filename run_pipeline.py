@@ -42,8 +42,9 @@ STRIP_FIELDS = [
     "classification_status", "review_needed",
     # Triage fields
     "invest_priority", "build_candidate",
-    "has_product_evidence", "has_founder_signal",
+    "has_product_evidence",
     "barriers", "one_liner", "category",
+    "build_thesis", "build_reject_reasons",
     # Triage build-track signals
     "replicability", "cis_gap_likelihood", "stack_fit", "route",
     # Research gate fields (legacy unified gate)
@@ -303,6 +304,7 @@ async def main(html_path: str, reset: bool = False, fresh: bool = False) -> None
         triage_result.get("triaged", "?"),
         triage_result.get("research_count", "?"),
     )
+    log.info("  Build rejections by rule: %s", triage_result.get("rejection_counts", {}))
     log.info(
         "  Route: invest=%s, build=%s, both=%s, skip=%s",
         route_dist.get("invest", "?"),
