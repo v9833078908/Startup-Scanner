@@ -6,32 +6,38 @@ You are a market research analyst evaluating whether a product category represen
 **Category:** {category}
 **Description:** {description}
 
-## CIS Competitor Search Results
+## Bucketed Search Results
 
-{cis_search_results}
+Each snippet is tagged with the query bucket it came from. Treat each bucket as a distinct signal type. Buckets that returned zero results are marked `(0 results — ...)` — that absence is data, not a gap in knowledge.
 
-## Open-Source Alternative Search Results
+{bucketed_results}
 
-{oss_search_results}
+## Bucket semantics
+
+- `[CIS_PLAYERS]` — habr.com / vc.ru (past year). Existing RU/CIS companies in this space.
+- `[DEMAND_SIGNAL]` — Russian commercial queries ("купить {category}", "{category} цена/стоимость"). RU landing pages mean local supply exists.
+- `[GLOBAL_ALT]` — "{name} alternatives" / "{name} vs". Global comparison pages.
+- `[OSS_BASE]` — open-source / self-hosted projects on GitHub.
+- `[COMMUNITY]` — reddit discussion (past year).
 
 ## Calibration
 
-The search results above may come from different backends:
-- **Raw web search results** (marked with backend "ddg" or "exa"): Real web page snippets. Base analysis only on what is actually found. If no CIS competitors were found, that IS a signal of a gap -- state it clearly.
-- **AI-synthesized summaries** (marked with [Sonar]): Pre-digested by another AI. Treat as directional leads. Do not fabricate companies or projects based solely on synthesized summaries without corroboration.
+Results may come from different backends:
+- **Raw web snippets** (backend "ddg" or "exa"): real page excerpts — base analysis only on what you see.
+- **AI-synthesized summaries** ([Sonar]): pre-digested by another AI. Treat as directional leads; do not fabricate companies solely from Sonar.
 
-Do not fabricate companies or projects not mentioned in the search results.
+**For each bucket, report ONLY what the labeled snippets contain.** If a bucket says `(0 results)`, state the absence in the corresponding field — do not invent entries by borrowing from other buckets.
 
 ## Task
 
-Synthesize the above sources into a build opportunity assessment. Return JSON with these keys:
+Return JSON with these keys:
 
-- **category_overview** (string): 1-2 sentences on what this niche/category is about and its current state
-- **cis_competitors** (string): existing Russian/CIS companies in this space found in search results. If none found, state "no CIS competitors found in search results"
-- **cis_gap_analysis** (string): is there a genuine gap in the CIS market? Based on whether competitors were or were not found
-- **oss_alternatives** (string): open-source projects in this space found in search results, including GitHub stars/activity if available
-- **replication_assessment** (string): what would it take to build this product for CIS -- team size, timeline, key technical challenges
-- **market_size_signals** (string): any market size indicators found in search results. State "insufficient data" if none
-- **risks** (string): 2-3 risks of building in this niche (competition, regulation, market size, technical complexity)
+- **cis_players** (string): list RU/CIS companies named in `[CIS_PLAYERS]` results (if any), or state "no CIS presence found in habr/vc.ru".
+- **demand_signal** (string): list Russian landing pages selling this category found in `[DEMAND_SIGNAL]` (if any), or state "no RU commercial supply found".
+- **global_alt** (string): up to 5 global alternatives named across `[GLOBAL_ALT]` comparison pages, or "no clear alternatives named".
+- **oss_base** (string): best OSS base from `[OSS_BASE]` with stars/activity if visible, or "no actionable OSS found".
+- **community** (string): 2–3 representative user opinions from `[COMMUNITY]`, or "no active discussion found".
+- **replication_assessment** (string): what it would take to build this for CIS — team size, timeline, key technical challenges.
+- **risks** (string): 2–3 risks of building in this niche (competition, regulation, market size, technical complexity).
 
-Be factual. Only report what the search results actually contain.
+Be factual. Only report what the bucketed results actually contain.

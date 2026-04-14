@@ -1,9 +1,12 @@
 import asyncio
+import json
 import logging
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from lib.web_search import web_search
 from lib.llm import call_llm, load_prompt
@@ -14,17 +17,60 @@ log = logging.getLogger("pipeline.build_research")
 IDEAS_DIR = Path("1_ideas")
 RESEARCH_DIR = Path("2_research")
 
+# name, query template (uses {name}/{category}), DDG timelimit (None = no filter)
+BUCKETS = [
+    ("CIS_PLAYERS",   "{category} site:habr.com OR site:vc.ru",                                "y"),
+    ("DEMAND_SIGNAL", '"купить {category}" OR "{category} цена" OR "{category} стоимость"',    None),
+    ("GLOBAL_ALT",    '"{name} alternatives" OR "{name} vs"',                                  None),
+    ("OSS_BASE",      "{name} open source self-hosted github",                                 None),
+    ("COMMUNITY",     "{category} site:reddit.com",                                            "y"),
+]
 
-def format_search_results(results: list[dict]) -> str:
-    """Format search results into readable text for prompt injection."""
-    if not results:
-        return "(No web search results found)"
-    lines = []
-    for i, r in enumerate(results, 1):
-        lines.append(f"### Result {i}: {r['title']}")
-        lines.append(f"URL: {r['url']}")
-        lines.append(r["text"][:1500])
-        lines.append("")
+BUCKET_EMPTY_NOTES = {
+    "CIS_PLAYERS":   "no CIS presence found on habr.com or vc.ru",
+    "DEMAND_SIGNAL": "no RU commercial supply (landing pages) surfaced in search",
+    "GLOBAL_ALT":    "no comparison/alternatives pages surfaced for this name",
+    "OSS_BASE":      "no actionable OSS project surfaced in search",
+    "COMMUNITY":     "no active reddit discussion surfaced for this category",
+}
+
+CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+
+
+def _is_ru_landing(result: dict) -> bool:
+    """A DEMAND_SIGNAL result counts as a RU landing if the domain is .ru
+    OR the title/snippet contains Cyrillic text.
+    """
+    url = result.get("url", "") or ""
+    try:
+        host = urlparse(url).netloc.lower()
+    except Exception:
+        host = ""
+    if host.endswith(".ru") or ".ru/" in url.lower():
+        return True
+    blob = (result.get("title", "") or "") + " " + (result.get("text", "") or "")
+    return bool(CYRILLIC_RE.search(blob))
+
+
+def _format_bucketed(bucketed: dict[str, list[dict]]) -> str:
+    """Flatten bucketed results into a single labeled string for prompt injection."""
+    lines: list[str] = []
+    for bucket_name, _, _ in BUCKETS:
+        results = bucketed.get(bucket_name, [])
+        if not results:
+            lines.append(f"[{bucket_name}] (0 results — {BUCKET_EMPTY_NOTES[bucket_name]})")
+            lines.append("")
+            continue
+        for i, r in enumerate(results, 1):
+            title = (r.get("title") or "").strip()
+            url = (r.get("url") or "").strip()
+            snippet = (r.get("text") or "").strip().replace("\n", " ")[:800]
+            lines.append(f"[{bucket_name}] result {i}: {title}")
+            if url:
+                lines.append(f"  URL: {url}")
+            if snippet:
+                lines.append(f"  {snippet}")
+            lines.append("")
     return "\n".join(lines)
 
 
@@ -36,8 +82,13 @@ def _section(title: str, value) -> str:
     return f"### {title}\n{value}\n"
 
 
+async def _run_bucket(name: str, query: str, timelimit: str | None) -> tuple[str, list[dict]]:
+    results = await web_search(query, num_results=5, timelimit=timelimit)
+    return name, results[:5]
+
+
 async def research_one_build(post, slug: str) -> dict:
-    """Research one startup for build track using web search."""
+    """Research one startup for build track using bucketed web search."""
     research_dir = RESEARCH_DIR / slug
     research_dir.mkdir(parents=True, exist_ok=True)
 
@@ -45,37 +96,56 @@ async def research_one_build(post, slug: str) -> dict:
     category = post.get("category", post.get("sector", "technology"))
     description = post.content or ""
 
-    # Step 1: Web search for CIS competitors
-    cis_queries = [
-        f"{category} Россия",
-        f"{category} аналог CIS",
+    # Step 1: Run all buckets (semaphore in run_build_research bounds parallelism across startups;
+    # within one startup, buckets fire in parallel — 5 concurrent DDG calls is fine).
+    tasks = [
+        _run_bucket(
+            bname,
+            tmpl.format(name=name, category=category),
+            tlimit,
+        )
+        for bname, tmpl, tlimit in BUCKETS
     ]
-    cis_results = []
-    for q in cis_queries:
-        results = await web_search(q, num_results=5)
-        cis_results.extend(results)
+    bucketed: dict[str, list[dict]] = {}
+    for coro in asyncio.as_completed(tasks):
+        bname, results = await coro
+        bucketed[bname] = results
 
-    # Step 2: Web search for OSS alternatives
-    oss_queries = [
-        f"{name} open source alternative github",
-    ]
-    oss_results = []
-    for q in oss_queries:
-        results = await web_search(q, num_results=5)
-        oss_results.extend(results)
+    # Step 2: Compute mechanical signals for sidecar
+    demand_results = bucketed.get("DEMAND_SIGNAL", [])
+    ru_landing_count = sum(1 for r in demand_results if _is_ru_landing(r))
 
-    cis_text = format_search_results(cis_results)
-    oss_text = format_search_results(oss_results)
+    sidecar = {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "name": name,
+        "category": category,
+        "buckets": {},
+    }
+    for bname, tmpl, tlimit in BUCKETS:
+        results = bucketed.get(bname, [])
+        entry = {
+            "query": tmpl.format(name=name, category=category),
+            "timelimit": tlimit,
+            "count": len(results),
+            "results": results,
+        }
+        if bname == "DEMAND_SIGNAL":
+            entry["ru_landing_count"] = ru_landing_count
+        sidecar["buckets"][bname] = entry
+
+    (research_dir / "build_research_raw.json").write_text(
+        json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     # Step 3: LLM synthesis
+    bucketed_text = _format_bucketed(bucketed)
     prompt_template = load_prompt("build_research")
     prompt = (
         prompt_template
         .replace("{name}", str(name))
         .replace("{category}", str(category))
         .replace("{description}", str(description)[:2000])
-        .replace("{cis_search_results}", cis_text)
-        .replace("{oss_search_results}", oss_text)
+        .replace("{bucketed_results}", bucketed_text)
     )
 
     result = await call_llm(
@@ -85,42 +155,48 @@ async def research_one_build(post, slug: str) -> dict:
     # Step 4: Write build_research.md
     if isinstance(result, dict):
         body = (
-            _section("Category Overview", result.get("category_overview", "N/A"))
+            _section("CIS Players", result.get("cis_players", "N/A"))
             + "\n"
-            + _section("CIS Competitors", result.get("cis_competitors", "N/A"))
+            + _section("Demand Signal", result.get("demand_signal", "N/A"))
             + "\n"
-            + _section("CIS Gap Analysis", result.get("cis_gap_analysis", "N/A"))
+            + _section("Global Alternatives", result.get("global_alt", "N/A"))
             + "\n"
-            + _section("OSS Alternatives", result.get("oss_alternatives", "N/A"))
+            + _section("OSS Base", result.get("oss_base", "N/A"))
+            + "\n"
+            + _section("Community", result.get("community", "N/A"))
             + "\n"
             + _section("Replication Assessment", result.get("replication_assessment", "N/A"))
-            + "\n"
-            + _section("Market Size Signals", result.get("market_size_signals", "N/A"))
             + "\n"
             + _section("Risks", result.get("risks", "N/A"))
         )
     else:
         body = "(LLM synthesis failed — no structured data available)"
 
-    build_research_path = research_dir / "build_research.md"
-    build_research_path.write_text(
+    total_results = sum(len(v) for v in bucketed.values())
+    backends = sorted({r.get("backend", "?") for v in bucketed.values() for r in v})
+
+    header = (
         f"# Build Research: {name}\n\n"
-        f"> Based on web search ({len(cis_results)} CIS results, "
-        f"{len(oss_results)} OSS results, "
-        f"backends: {','.join(set(r.get('backend', '?') for r in cis_results + oss_results))}). "
-        f"Generated {datetime.utcnow().isoformat()}\n\n"
-        f"{body}",
-        encoding="utf-8",
+        f"> Bucketed web search: "
+        + ", ".join(f"{bname}={len(bucketed.get(bname, []))}" for bname, _, _ in BUCKETS)
+        + f" (total {total_results}, backends: {','.join(backends) or 'none'}). "
+        f"demand_signal_ru_landings={ru_landing_count}. "
+        f"Generated {datetime.utcnow().isoformat()}Z\n\n"
     )
 
+    build_research_path = research_dir / "build_research.md"
+    build_research_path.write_text(header + body, encoding="utf-8")
+
     log.info(
-        "Build research done for %s (%d CIS, %d OSS results)",
-        slug, len(cis_results), len(oss_results),
+        "Build research done for %s (%s, ru_landings=%d)",
+        slug,
+        ", ".join(f"{bname}={len(bucketed.get(bname, []))}" for bname, _, _ in BUCKETS),
+        ru_landing_count,
     )
     return {
         "slug": slug,
-        "cis_results": len(cis_results),
-        "oss_results": len(oss_results),
+        "total_results": total_results,
+        "ru_landing_count": ru_landing_count,
         "status": "ok",
     }
 
@@ -169,7 +245,7 @@ async def run_build_research(slugs: list[str]) -> dict:
 
     log.info("Build research: %d to process, %d skipped", len(pending), skipped)
 
-    # Limit concurrency to avoid DDG/Sonar rate limits
+    # Limit concurrency across startups — each one fires 5 bucket queries in parallel.
     sem = asyncio.Semaphore(2)
 
     async def _throttled(post, slug):
