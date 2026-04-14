@@ -19,6 +19,7 @@ Answer these 5 questions based on what the build research actually found:
 1. **cis_gap_confirmed** -- Does the research confirm there is no established CIS competitor in this space?
    - true: search results found no Russian/CIS companies, or explicitly noted a gap
    - false: CIS competitors were found, or data is insufficient to confirm a gap
+   - Note: if ≥3 Russian landing pages were found in the demand-signal bucket, a mechanical post-check will force this to false regardless of your answer. Your job is still to reason honestly from the notes — the override is a safety net, not a substitute.
 
 2. **replicable_confirmed** -- Does the research confirm this product could be built in 2-3 months by a small team (3-5 people)?
    - true: research indicates straightforward technology, clear architecture, no regulatory barriers

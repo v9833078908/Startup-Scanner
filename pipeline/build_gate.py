@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -8,6 +9,10 @@ import yaml
 
 from lib.llm import call_llm, load_prompt
 from lib.utils import load_idea, save_idea, make_slug
+
+# If DEMAND_SIGNAL bucket returned >= this many RU landing pages, the gate
+# mechanically forces cis_gap_confirmed=False regardless of LLM judgement.
+RU_LANDING_OVERRIDE_THRESHOLD = 3
 
 log = logging.getLogger("pipeline.build_gate")
 
@@ -64,7 +69,7 @@ async def evaluate_build(
 
     result = await call_llm(
         prompt,
-        model=os.getenv("OPENROUTER_MODEL_LIGHT"),
+        model=os.getenv("OPENROUTER_MODEL_MEDIUM"),
         json_mode=True,
     )
 
@@ -81,6 +86,27 @@ async def evaluate_build(
     # Coerce all values to bool
     for key in REQUIRED_KEYS:
         result[key] = _coerce_bool(result.get(key, False))
+
+    # Mechanical override: ≥3 RU landing pages for "купить {category}" means
+    # local commercial supply exists — cis_gap_confirmed cannot be true.
+    raw_path = research_dir / "build_research_raw.json"
+    if raw_path.exists():
+        try:
+            raw = json.loads(raw_path.read_text(encoding="utf-8"))
+            ru_hits = (
+                raw.get("buckets", {})
+                .get("DEMAND_SIGNAL", {})
+                .get("ru_landing_count", 0)
+            )
+            if ru_hits >= RU_LANDING_OVERRIDE_THRESHOLD and result.get("cis_gap_confirmed"):
+                log.info(
+                    "Build gate override for %s: %d RU landings → cis_gap_confirmed=False",
+                    slug, ru_hits,
+                )
+                result["cis_gap_confirmed"] = False
+                result["_override"] = f"demand_signal_ru_landings={ru_hits}"
+        except Exception as exc:
+            log.warning("Override check failed for %s: %s", slug, exc)
 
     return result
 
@@ -155,11 +181,14 @@ async def run_build_gate(slugs: list[str]) -> dict:
         build_priority = compute_build_priority(result)
 
         # Write gate_build.md
+        override_suffix = (
+            f"  (override: {result['_override']})" if result.get("_override") else ""
+        )
         gate_lines = [
             f"# Build Gate: {idea_post.get('name', slug)}",
             "",
             "## Build Signals",
-            f"- cis_gap_confirmed: {result.get('cis_gap_confirmed', False)}",
+            f"- cis_gap_confirmed: {result.get('cis_gap_confirmed', False)}{override_suffix}",
             f"- replicable_confirmed: {result.get('replicable_confirmed', False)}",
             f"- oss_base_available: {result.get('oss_base_available', False)}",
             f"- market_demand_signals: {result.get('market_demand_signals', False)}",

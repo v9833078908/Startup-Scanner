@@ -68,8 +68,9 @@ Phase 1 MVP uses `lib/utils.py` directly — refactor to core/ starts in Phase 2
 ### LLM Integration
 - Use **OpenRouter API** (`https://openrouter.ai/api/v1`) for all LLM calls — OpenAI-compatible interface
 - Model names are set in `.env`, never hardcoded. Different models for different complexity:
-  - `OPENROUTER_MODEL_LIGHT` — cheap/fast model for simple tasks (extraction, summarization, classification)
-  - `OPENROUTER_MODEL_HEAVY` — stronger model for complex analysis (scoring, invest/build assessments, trend reports)
+  - `OPENROUTER_MODEL_LIGHT` — cheap/fast model for simple tasks (triage, prefilter, extraction, classification)
+  - `OPENROUTER_MODEL_MEDIUM` — mid-tier model for gate stages where binary decision quality matters more than cost (build_gate, invest_gate, research_gate)
+  - `OPENROUTER_MODEL_HEAVY` — stronger model for complex analysis (deep research, deep analysis, scoring, trend reports)
 - API key: `OPENROUTER_API_KEY` in `.env`
 - Use `openai` Python SDK pointed at OpenRouter base URL, or raw `httpx` calls
 

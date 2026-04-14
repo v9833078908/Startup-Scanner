@@ -69,7 +69,7 @@ async def evaluate_invest(
 
     result = await call_llm(
         prompt,
-        model=os.getenv("OPENROUTER_MODEL_LIGHT"),
+        model=os.getenv("OPENROUTER_MODEL_MEDIUM"),
         json_mode=True,
     )
 
