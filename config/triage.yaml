@@ -1,23 +1,31 @@
 # Invest triage: count binary yes signals
+# (has_founder_signal removed — DealPad almost never contains founder data, signal was useless)
 invest_signals:
   - has_product_evidence    # from LLM triage
-  - has_founder_signal      # from LLM triage
   - sector_fit              # from prefilter: sector_match in (yes, partial)
   - round_in_range          # mechanical: $30K-$2M
 
-# Priority from signal count
+# Priority from signal count (3 signals total)
 invest_priority_thresholds:
-  high: 3    # 3-4 yes signals
-  medium: 2  # 2 yes signals
-  low: 0     # 0-1 yes signals — skip research
+  high: 3    # all 3 signals — strict
+  medium: 2  # 2 of 3 signals
+  low: 0     # 0-1 signals — skip research
 
-# Build triage: tighter filter requiring replicability + stack_fit
+# Build triage: declarative filter — every key here is checked as AND.
+# Source: triage_result for {replicability, stack_fit, cis_gap_likelihood,
+# has_product_evidence}; idea frontmatter otherwise.
+# Add new conditions here without code changes.
 build_candidate_requires:
   is_tech: true
   product_type: ["software", "service"]
   sector_match: ["yes", "partial"]
   replicability: ["easy", "medium"]
   stack_fit: true
+  # cis_gap_likelihood — intentionally NOT a triage gate.
+  # Triage records the LLM's call into frontmatter, but real CIS-gap validation
+  # happens downstream in build_research (Exa/DDG search) + build_gate
+  # (cis_gap_confirmed). Triage shouldn't reject on a thin-data signal that
+  # has a proper evidence-based check later.
 
 # Route computation rules (used by triage.py compute_route)
 route_rules:
@@ -58,6 +66,6 @@ pipeline_tracks:
   build: true
   invest: false
   # Include "both"-routed startups in enabled tracks (false = only exact route match)
-  include_both: false
+  include_both: true
   # When invest is true, limit deep analysis to top N (0 = no limit)
   invest_top_n: 20

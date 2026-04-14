@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import defaultdict
 from pathlib import Path
 
 import frontmatter
@@ -17,13 +18,22 @@ CONFIG_PATH = Path("config/triage.yaml")
 
 REQUIRED_KEYS = {
     "has_product_evidence",
-    "has_founder_signal",
     "barriers",
     "one_liner",
     "category",
     "replicability",
     "cis_gap_likelihood",
     "stack_fit",
+    "build_thesis",
+}
+
+# Fields that come from the triage LLM result (not idea frontmatter).
+# Used by evaluate_build_candidate to know where to read each rule's value from.
+TRIAGE_RESULT_FIELDS = {
+    "replicability",
+    "stack_fit",
+    "cis_gap_likelihood",
+    "has_product_evidence",
 }
 
 
@@ -50,8 +60,8 @@ def _coerce_bool(value) -> bool:
 async def triage_one(post: frontmatter.Post, prompt_template: str) -> dict | None:
     """Ask LLM binary evidence questions about a startup.
 
-    Returns dict with has_product_evidence, has_founder_signal, barriers,
-    one_liner, category. Returns None on failure.
+    Returns dict with has_product_evidence, barriers, one_liner, category,
+    replicability, cis_gap_likelihood, stack_fit. Returns None on failure.
     """
     name = post.get("name", "Unknown")
     url = post.get("url", "")
@@ -89,7 +99,6 @@ async def triage_one(post: frontmatter.Post, prompt_template: str) -> dict | Non
 
     # Coerce boolean fields
     result["has_product_evidence"] = _coerce_bool(result["has_product_evidence"])
-    result["has_founder_signal"] = _coerce_bool(result["has_founder_signal"])
     result["cis_gap_likelihood"] = _coerce_bool(result.get("cis_gap_likelihood", False))
     result["stack_fit"] = _coerce_bool(result.get("stack_fit", False))
 
@@ -106,15 +115,15 @@ def compute_invest_priority(
 ) -> str:
     """Count binary yes signals to determine invest priority.
 
-    4 signals: sector_fit, round_in_range, has_product_evidence, has_founder_signal.
-    Unknown founder = 0 (neutral), NOT negative.
+    3 signals: sector_fit, round_in_range, has_product_evidence.
+    (has_founder_signal removed — DealPad almost never contains founder data.)
+    Founder evaluation deferred to research/analysis stages where evidence exists.
     """
     sector_fit = post.get("sector_match") in ("yes", "partial")
     round_in_range = is_round_in_range(post.get("round_usd"))
     has_product = triage_result.get("has_product_evidence", False)
-    has_founder = triage_result.get("has_founder_signal", False)
 
-    signal_count = sum([sector_fit, round_in_range, has_product, has_founder])
+    signal_count = sum([sector_fit, round_in_range, has_product])
 
     thresholds = config["invest_priority_thresholds"]
     if signal_count >= thresholds["high"]:
@@ -124,18 +133,40 @@ def compute_invest_priority(
     return "low"
 
 
-def compute_build_candidate(post: frontmatter.Post, triage_result: dict, config: dict) -> bool:
-    """Check if startup is a build candidate. Tighter than before:
-    requires replicability in (easy/medium) AND stack_fit=true.
+def evaluate_build_candidate(
+    post: frontmatter.Post, triage_result: dict, config: dict
+) -> tuple[bool, list[str]]:
+    """Declarative evaluation of build_candidate_requires.
+
+    Iterates over every rule in config['build_candidate_requires']:
+    - list value → membership check
+    - bool value → coerced equality
+    - scalar value → direct equality
+
+    Source of value: triage_result for TRIAGE_RESULT_FIELDS, otherwise post (frontmatter).
+
+    Returns (is_candidate, failed_rules). failed_rules is empty if candidate.
     """
     req = config["build_candidate_requires"]
-    return (
-        post.get("is_tech") is True
-        and post.get("product_type") in req["product_type"]
-        and post.get("sector_match") in req["sector_match"]
-        and triage_result.get("replicability") in req.get("replicability", ["easy", "medium"])
-        and _coerce_bool(triage_result.get("stack_fit", False))
-    )
+    failed: list[str] = []
+
+    for field, expected in req.items():
+        if field in TRIAGE_RESULT_FIELDS:
+            actual = triage_result.get(field)
+        else:
+            actual = post.get(field)
+
+        if isinstance(expected, list):
+            ok = actual in expected
+        elif isinstance(expected, bool):
+            ok = _coerce_bool(actual) == expected
+        else:
+            ok = actual == expected
+
+        if not ok:
+            failed.append(field)
+
+    return (len(failed) == 0, failed)
 
 
 def compute_route(invest_priority: str, build_candidate: bool) -> str:
@@ -181,6 +212,7 @@ async def run_triage() -> dict:
     priority_dist = {"high": 0, "medium": 0, "low": 0}
     route_dist = {"invest": 0, "build": 0, "both": 0, "skip": 0}
     build_count = 0
+    rejection_counts: dict[str, int] = defaultdict(int)
     research_list = []
 
     for (file_path, post), result in zip(to_triage, results):
@@ -189,21 +221,25 @@ async def run_triage() -> dict:
             continue
 
         invest_priority = compute_invest_priority(post, result, config)
-        build_candidate = compute_build_candidate(post, result, config)
+        build_candidate, failed_rules = evaluate_build_candidate(post, result, config)
         route = compute_route(invest_priority, build_candidate)
 
         # Write triage fields to frontmatter
         post["invest_priority"] = invest_priority
         post["build_candidate"] = build_candidate
         post["has_product_evidence"] = result["has_product_evidence"]
-        post["has_founder_signal"] = result["has_founder_signal"]
         post["barriers"] = result.get("barriers", [])
         post["one_liner"] = result.get("one_liner")
         post["category"] = result.get("category")
         post["replicability"] = result["replicability"]
         post["cis_gap_likelihood"] = result["cis_gap_likelihood"]
         post["stack_fit"] = result["stack_fit"]
+        post["build_thesis"] = result.get("build_thesis")
         post["route"] = route
+        if not build_candidate:
+            post["build_reject_reasons"] = failed_rules
+            for rule in failed_rules:
+                rejection_counts[rule] += 1
 
         save_idea(post, file_path)
         triaged_count += 1
@@ -230,6 +266,10 @@ async def run_triage() -> dict:
         if r != "skip":
             research_list.append(slug)
 
+    rejection_summary = ", ".join(
+        f"{k}={v}" for k, v in sorted(rejection_counts.items(), key=lambda x: -x[1])
+    ) or "none"
+
     print(
         f"Triage: {triaged_count} triaged, {failed_count} failed, {skipped} skipped\n"
         f"  Priority: high={priority_dist['high']}, medium={priority_dist['medium']}, "
@@ -237,6 +277,7 @@ async def run_triage() -> dict:
         f"  Route: invest={route_dist['invest']}, build={route_dist['build']}, "
         f"both={route_dist['both']}, skip={route_dist['skip']}\n"
         f"  Build candidates: {build_count}\n"
+        f"  Build rejections by rule: {rejection_summary}\n"
         f"  Research list: {len(research_list)} ideas"
     )
 
@@ -247,6 +288,7 @@ async def run_triage() -> dict:
         "priority_distribution": priority_dist,
         "route_distribution": route_dist,
         "build_candidates": build_count,
+        "rejection_counts": dict(rejection_counts),
         "research_list": research_list,
         "research_count": len(research_list),
     }
