@@ -42,3 +42,6 @@ logs/
 config/.hn_seen
 config/.telegram_state.json
 .omx/
+
+# Claude Code local state
+.claude/
