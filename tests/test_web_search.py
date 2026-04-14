@@ -167,6 +167,35 @@ class TestFallbackChain:
                 mock_ddg.assert_not_called()
 
 
+# ── timelimit passthrough ───────────────────────────────────────────
+
+class TestTimelimit:
+    def test_web_search_passes_timelimit_to_ddg(self):
+        """web_search(..., timelimit='y') must reach _ddg_search with timelimit='y'."""
+        with patch.dict(os.environ, {"SEARCH_BACKEND": "ddg"}):
+            with patch("lib.web_search._ddg_search", new_callable=AsyncMock,
+                       return_value=[{"title": "t", "url": "u", "text": "x", "backend": "ddg"}]) as mock_ddg:
+                from lib.web_search import web_search
+                run(web_search("test query", num_results=5, timelimit="y"))
+                mock_ddg.assert_called_once()
+                _, kwargs = mock_ddg.call_args
+                assert kwargs.get("timelimit") == "y"
+
+    def test_sonar_prepends_recency_hint_when_timelimit_set(self):
+        """Sonar has no native timelimit — it must get a recency hint prepended."""
+        captured = {}
+
+        async def fake_llm(**kw):
+            captured.update(kw)
+            return "answer"
+
+        with patch("lib.llm.call_llm", side_effect=fake_llm):
+            from lib.web_search import _sonar_search
+            run(_sonar_search("base query", timelimit="y"))
+            assert "past year" in captured.get("prompt", "")
+            assert "base query" in captured.get("prompt", "")
+
+
 # ── Output contract ─────────────────────────────────────────────────
 
 class TestOutputContract:

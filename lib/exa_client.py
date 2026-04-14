@@ -15,21 +15,29 @@ def get_exa_client() -> Exa:
 
 
 def exa_search(
-    query: str, num_results: int = 5, search_type: str = "auto"
+    query: str,
+    num_results: int = 5,
+    search_type: str = "auto",
+    start_date: str | None = None,
 ) -> list[dict]:
     """Search Exa and return list of {title, url, text} dicts.
 
     Uses synchronous Exa SDK (exa-py is sync).
     Returns empty list on failure -- never raises.
+
+    start_date: optional ISO date (YYYY-MM-DD) passed as start_published_date
+    to Exa's recency filter.
     """
     try:
         client = get_exa_client()
-        result = client.search_and_contents(
-            query,
-            num_results=num_results,
-            type=search_type,
-            text=True,
-        )
+        kwargs = {
+            "num_results": num_results,
+            "type": search_type,
+            "text": True,
+        }
+        if start_date:
+            kwargs["start_published_date"] = start_date
+        result = client.search_and_contents(query, **kwargs)
         return [
             {
                 "title": r.title or "",
