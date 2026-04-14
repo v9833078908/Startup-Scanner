@@ -1,0 +1,95 @@
+name,route,invest_priority,replicability,b2b_b2c,sector,product_type,category,url,build_analysis_ready
+"21st",both,high,medium,b2b,"AI/ML",software,"AI agent development platform",https://21st.dev/,
+"AirHub",both,medium,medium,b2b,"automation",software,"drone operations software",https://www.airhub.app/,
+"Alloy",both,high,easy,b2c,"marketplace",service,"fintech marketplace",https://thealloymarket.com/,
+"Alternatsee",both,medium,easy,b2b,"SaaS",software,"SaaS scheduling",https://alternatsee.com/,
+"Approxima",both,high,medium,b2b,"AI/ML",software,"AI code testing and quality assurance",https://approxima.ai/,
+"Ashr",both,medium,medium,b2b,"AI/ML",software,"AI testing tools",https://ashr.io/,
+"Beesafe AI",both,medium,medium,b2b,"AI/ML",software,"AI fraud prevention",https://beesafe.ai/,
+"Beneration",both,medium,medium,b2b,"HR tech",software,"HR tech benefits administration",https://beneration.com/,
+"blendX",both,medium,medium,b2b,"automation",software,"innovation process automation",https://blendx.io/it,
+"Booko App",both,medium,easy,b2b,"SaaS",software,"online scheduling platform",https://bookoapp.com/,
+"Bubble Lab",both,medium,medium,b2b,"automation",software,"no-code AI automation",https://bubblelab.ai/,
+"Canary",both,high,medium,b2b,"developer tools",software,"AI-powered developer testing",https://www.runcanary.ai/,
+"Cardboard",both,high,medium,b2b,"AI/ML",software,"AI video editing",https://www.usecardboard.com/,
+"Cardinal",both,medium,medium,b2b,"AI/ML",software,"sales automation",https://trycardinal.ai/,
+"Carrot Labs",both,high,medium,b2b,"AI/ML",software,"AI agent optimization",https://carrotlabs.ai/,
+"Catalog",both,medium,medium,b2b,"AI/ML",software,"e-commerce product discovery AI",https://www.getcatalog.ai/,
+"Chime Labs",both,high,medium,b2b,"AI/ML",software,"AI virtual receptionist",https://www.chimelabs.ai/,
+"CodeWisp",both,high,medium,b2c,"gamedev",software,"gamedev education platform",https://codewisp.net/,
+"Copperlane",both,high,medium,b2b,"fintech",software,"fintech loan automation",https://www.copperlane.ai/,
+"Creality",both,medium,medium,b2c,"gamedev",software,"online gambling platform",http://creality3d.shop/,
+"Crow",both,high,medium,b2b,"AI/ML",software,"AI conversational UI",https://www.usecrow.ai/,
+"EigenPal",both,high,medium,b2b,"AI/ML",software,"AI document automation",https://www.eigenpal.com/,
+"Electrifi Mobility",both,medium,medium,b2b,"logistics",software,"logistics software",https://electrifimobility.com/,True
+"Emdash",both,medium,medium,b2b,"developer tools",software,"developer tools",https://www.emdash.sh/,
+"End Close",both,medium,medium,b2b,"fintech",software,"fintech payments reconciliation automation",https://www.endclose.com/,
+"EverMemory",both,medium,medium,b2c,"AI/ML",software,"AI personal memoir generation",https://evermemory.ai/,
+"Fastrflow",both,high,medium,b2c,"AI/ML",software,"AI edtech copilot",https://fastrflow.com/,
+"Fixture",both,medium,medium,b2b,"AI/ML",software,"AI customer engagement",https://fixture.app/,
+"Glue",both,high,easy,unknown,"developer tools",software,"developer tools",https://www.buildwithglue.com/,
+"GoSats",both,medium,medium,b2c,"fintech",software,"fintech rewards program",https://gosats.io/,
+"Grade",both,high,medium,b2b,"AI/ML",software,"fintech for AI agents",https://usegrade.com/,
+"Grapple",both,medium,medium,b2b,"data",software,"no-code data platform",https://cloudgrapple.com/,
+"Hakimu",both,medium,medium,unknown,"AI/ML",software,"AI search",https://hakimu.ai/about,
+"Handhold",both,medium,medium,b2b,"AI/ML",software,"AI sales automation",https://handhold.io/,
+"HumanImage",both,medium,medium,unknown,"AI/ML",software,"AI/ML software",https://www.humanimageinc.com/,
+"Injewelme",both,medium,medium,unknown,"AI/ML",software,"AI/ML data technology",https://www.injewelme.com/,
+"InventoryQuant",both,medium,medium,b2b,"automation",software,"inventory automation software",https://www.inventoryquant.com/,
+"Livid",both,medium,medium,both,"SaaS",software,"video hosting",https://livid.com/,
+"Luel",both,medium,medium,b2b,"AI/ML",service,"AI data labeling marketplace",https://www.luel.ai/,
+"Mendral",both,high,medium,b2b,"AI/ML",software,"AI for CI/CD automation",https://www.mendral.com/,
+"Mocha Care",both,medium,medium,b2b,"healthtech",software,"healthtech automation",https://www.mochacare.com/,
+"Moda",both,high,medium,b2b,"AI/ML",software,"AI customer service analytics",https://modaflows.com/,
+"nFuse.ai",both,high,medium,b2b,"AI/ML",software,"AI B2B sales automation",https://nfuse.ai/,
+"Oh",both,medium,medium,b2c,"AI/ML",software,"AI companion platform",https://chat.oh.xyz/,
+"OnSite",both,medium,easy,b2b,"automation",software,"team collaboration automation",https://www.on-site.io/,
+"Oximy",both,high,medium,b2b,"AI/ML",software,"AI usage analytics",https://oximy.com/,
+"Packz",both,medium,medium,b2c,"gamedev",software,"gamedev collectible cards",https://packz.io/,
+"Palus Finance",both,medium,medium,unknown,"fintech",software,"fintech software",https://www.palus.finance/,
+"Pollinate",both,medium,medium,b2b,"developer tools",software,"developer tools for data-driven applications",https://www.pollinate.tech/,
+"Reframe",both,high,medium,b2b,"AI/ML",software,"AI procurement automation",https://www.usereframe.ai/,
+"Remix",both,high,medium,b2b,"AI/ML",software,"AI content generation",https://remix.re/,
+"Ressl AI",both,medium,medium,b2b,"AI/ML",software,"AI agents",https://www.ressl.ai/,
+"Ridge AI",both,medium,medium,b2b,"AI/ML",software,"AI data experience / embedded analytics",https://www.ridgedata.ai/,
+"Rork",both,medium,medium,b2b,"AI/ML",software,"AI mobile app development",https://rork.app/,
+"Salus",both,medium,medium,b2b,"AI/ML",software,"AI agent safety",https://usesalus.ai/,
+"Samora AI",both,medium,medium,unknown,"AI/ML",software,"general AI/ML software",https://www.samora.ai/,
+"Scheduling Wizard",both,high,medium,b2b,"healthtech",software,"healthtech scheduling automation",https://www.schedulingwiz.com/,
+"Sila",both,high,medium,b2b,"automation",software,"workplace collaboration",https://silahq.com/,
+"Sitefire",both,high,medium,b2b,"AI/ML",software,"AI content marketing",https://sitefire.ai/,
+"Sparkles",both,high,medium,b2b,"developer tools",software,"developer tools for non-developers",https://www.sparkles.dev/,
+"The Interaction Company of California",both,medium,medium,b2b,"AI/ML",software,"AI personal assistant",https://poke.com/,
+"The Token Company",both,high,medium,b2b,"AI/ML",software,"AI LLM optimization",https://thetokencompany.com/,
+"Thesis Machine Learning",both,medium,medium,b2b,"AI/ML",software,"AI thematic intelligence",https://thesisml.com/,
+"Thinkeo",both,medium,medium,b2b,"AI/ML",software,"AI document generation",https://www.thinkeo.io/,
+"Two Boxes",both,medium,medium,b2b,"logistics",software,"e-commerce returns logistics",https://www.twoboxes.com/,
+"Tycoon",both,medium,medium,unknown,"AI/ML",software,"AI business management",https://tycoon.us/,
+"Vela",both,high,medium,b2b,"AI/ML",software,"AI booking assistant",https://tryvela.ai/,
+"Veriad",both,medium,medium,b2b,"AI/ML",software,"AI content compliance",https://www.veriad.ai/,
+"Vet Mentor AI",both,medium,medium,unknown,"AI/ML",software,"AI for veterinary medicine",https://www.vetmentorai.org/,
+"WealthAI",both,medium,medium,b2b,"fintech",software,"AI wealth management",https://wealthai.tech/,
+"Wideframe",both,high,medium,b2b,"AI/ML",software,"AI video workflow automation",https://wideframe.com/,
+"Xccelera",both,medium,easy,unknown,"AI/ML",software,"AI/ML software",https://xccelera.ai/,
+"Yellow Blue",both,medium,medium,unknown,"AI/ML",software,"AI assistant",https://yellowblue1.com/,
+"Zellor",both,high,medium,b2b,"AI/ML",software,"AI e-commerce marketing",https://zellor.com/,
+"AfterQuery",build_only,low,medium,unknown,"AI/ML",software,"AI/ML platform",https://www.afterquery.com/,False
+"AI6 Technologies",build_only,low,medium,unknown,"AI/ML",software,"AI/ML software",https://ai6technologies.fr/,False
+"Atlas",build_only,low,medium,b2b,"AI/ML",software,"AI operational efficiency",https://theatlas.ai/,True
+"BLOCKS",build_only,low,medium,b2b,"cloud",software,"cloud cost optimization",https://blocks.cloud/,True
+"Deeptrace",build_only,low,medium,b2b,"AI/ML",software,"AI IT operations automation",https://deeptrace.com/,True
+"Electrifi Mobility",build_only,low,medium,b2b,"logistics",software,"logistics software",https://electrifimobility.com/,True
+"eShot Labs",build_only,low,medium,unknown,"developer tools",software,"Web3 video creation",https://eshotlabs.com/,True
+"Genspark AI",build_only,low,medium,unknown,"AI/ML",software,"general AI/ML software",https://genspark.ai/,False
+"Golden Analytics",build_only,low,medium,unknown,"analytics",software,"general analytics software",https://www.goldenanalytics.com/,False
+"Inner AI",build_only,low,medium,unknown,"AI/ML",software,"general AI/ML software",https://www.innerai.com/,False
+"Juno",build_only,low,medium,unknown,"fintech",software,"fintech software",https://juno.tax/,False
+"Lucky",build_only,low,medium,b2c,"fintech",software,"fintech consumer rewards",https://luckyegypt.com/,True
+"Monetary Metals",build_only,low,easy,unknown,"fintech",software,"fintech",https://monetary-metals.com/,True
+"Moonbounce",build_only,low,medium,b2b,"AI/ML",software,"AI policy enforcement",https://moonbounce.io/,True
+"Natter",build_only,low,medium,b2b,"analytics",software,"analytics insights",https://natter.co/,True
+"Pixie Chess",build_only,low,easy,b2c,"gamedev",software,"gamedev chess",https://www.pixiechess.xyz/,False
+"Pomo",build_only,low,easy,unknown,"AI/ML",software,"generic AI/ML software",https://usepomo.ai/,False
+"Ricerca",build_only,low,medium,b2b,"AI/ML",software,"AI operational efficiency",https://recerqa.com/,True
+"WorkOnGrid",build_only,low,medium,b2b,"automation",software,"low-code utility automation",https://www.workongrid.com/,False
+"Zanskar Securities",build_only,low,easy,unknown,"fintech",software,"fintech software",https://zanskar.xyz/,True
