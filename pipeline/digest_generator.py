@@ -1,9 +1,42 @@
+"""Stage 9 — Digest Generator (DETERMINISTIC-FIRST).
+
+Architecture
+------------
+Per 02-CONTEXT.md "Stage 9: Digest Update — DETERMINISTIC-FIRST":
+
+- Hand-built sections (Python templates, NO LLM):
+  * Pipeline Summary
+  * BUILD рекомендации (executive_summary pasted BYTE-FOR-BYTE)
+  * MONITOR (executive_summary pasted BYTE-FOR-BYTE)
+  * PASS via kill signals (table with kill_reason)
+
+- LLM-narrow sections (synthesis only):
+  * Ключевые находки недели (2-3 sentences synthesized across all startups)
+  * Тренды недели (top categories + patterns)
+
+The LLM NEVER sees per-startup executive_summaries — they are composed by Python
+directly. This guarantees Stage 8 wording survives intact into the digest and
+avoids the paraphrase/compress failure mode of LLM-first digest generation.
+
+No numeric scoring appears anywhere in the rendered digest (scores live in
+3_analysis/ files for audit trail only).
+
+Verdict taxonomy (from Plan 02-02): build_verdict ∈ {BUILD, PARTNER, MONITOR, SKIP}.
+Killed startups keep their computed verdict and are filtered via the `killed` flag,
+not relabelled.
+
+Backward compat: legacy analysis files from pre-Plan-02 runs may still carry
+invest_total/invest_verdict frontmatter. collect_analyses uses post.get() with
+defaults — never raises KeyError on missing invest fields.
+"""
+
 import asyncio
 import datetime
 import json
 import logging
 import os
 import time
+from collections import Counter
 from pathlib import Path
 
 import frontmatter
@@ -20,8 +53,20 @@ DIGESTS_DIR = Path("digests")
 RESEARCH_DIR = Path("2_research")
 
 
+# ---------------------------------------------------------------------------
+# Stats collection
+# ---------------------------------------------------------------------------
+
 def collect_pipeline_stats() -> dict:
-    """Count items at each pipeline stage using triage fields."""
+    """Count items at each pipeline stage.
+
+    Updates in Plan 02-03:
+    - `researched` counter now checks for web_research.md OR build_research.md
+      OR deep_research.md (was legacy-only, which made the digest show 0 after
+      Phase 2 reshuffling).
+    - `deep_researched` new counter — Stage 7.5 visibility.
+    - `killed` new counter — PASS via kill signal section needs this.
+    """
     total = len(list(IDEAS_DIR.glob("*.md")))
     archived = len(list(ARCHIVE_DIR.glob("*.md"))) if ARCHIVE_DIR.exists() else 0
 
@@ -29,6 +74,7 @@ def collect_pipeline_stats() -> dict:
     priority_dist = {"high": 0, "medium": 0, "low": 0}
     build_candidates = 0
     research_candidates = 0
+    route_dist = {"invest": 0, "build": 0, "both": 0, "skip": 0}
 
     for idea_file in IDEAS_DIR.glob("*.md"):
         try:
@@ -41,37 +87,73 @@ def collect_pipeline_stats() -> dict:
                     build_candidates += 1
                 if priority in ("high", "medium") or post.get("build_candidate"):
                     research_candidates += 1
+            route = post.get("route")
+            if route in route_dist:
+                route_dist[route] += 1
         except Exception:
             continue
 
+    # Researched: any of the known research artifact files
     researched = len([
         d for d in RESEARCH_DIR.iterdir()
-        if d.is_dir() and (d / "web_research.md").exists()
+        if d.is_dir() and any(
+            (d / f).exists()
+            for f in ("web_research.md", "build_research.md", "deep_research.md")
+        )
     ]) if RESEARCH_DIR.exists() else 0
 
-    analyzed = len(list(ANALYSIS_DIR.glob("*_analysis.md"))) if ANALYSIS_DIR.exists() else 0
+    # Deep researched: Stage 7.5 output specifically
+    deep_researched = len([
+        d for d in RESEARCH_DIR.iterdir()
+        if d.is_dir() and (d / "deep_research.md").exists()
+    ]) if RESEARCH_DIR.exists() else 0
+
+    analyzed = (
+        len(list(ANALYSIS_DIR.glob("*_analysis.md")))
+        if ANALYSIS_DIR.exists() else 0
+    )
+
+    killed_count = 0
+    if ANALYSIS_DIR.exists():
+        for f in ANALYSIS_DIR.glob("*_analysis.md"):
+            try:
+                if frontmatter.load(str(f)).get("killed", False):
+                    killed_count += 1
+            except Exception:
+                continue
 
     return {
         "total": total,
         "archived": archived,
         "triaged": triaged,
         "priority_distribution": priority_dist,
+        "route_distribution": route_dist,
         "build_candidates": build_candidates,
         "research_candidates": research_candidates,
         "researched": researched,
+        "deep_researched": deep_researched,
         "analyzed": analyzed,
+        "killed": killed_count,
     }
 
 
-def collect_analyses() -> list[dict]:
-    """Read all analysis files and return sorted list of analysis dicts.
+# ---------------------------------------------------------------------------
+# Analysis collection
+# ---------------------------------------------------------------------------
 
-    Enriches each analysis with data from the matching idea file:
-    category, one_liner, round_raw (analysis files don't store these).
+def collect_analyses() -> list[dict]:
+    """Read all analysis files; return list sorted by build_total desc.
+
+    Post-Plan-02 fields (required by the deterministic digest):
+      killed, kill_reason, executive_summary, recommended_market, time_to_mvp,
+      time_to_revenue.
+
+    Backward compat: old analysis files may still carry invest_total/invest_verdict.
+    We use post.get() with defaults so a missing invest field does NOT raise.
     """
     analyses = []
 
-    # Build slug->idea lookup once
+    # slug -> idea lookup (category/round/one_liner fallbacks)
     idea_map = {}
     for idea_file in IDEAS_DIR.glob("*.md"):
         try:
@@ -86,7 +168,7 @@ def collect_analyses() -> list[dict]:
             post = frontmatter.load(str(analysis_file))
             slug = analysis_file.stem.replace("_analysis", "")
 
-            # Enrich from idea file
+            # Enrich from idea file (category/round/one_liner not stored in analysis)
             idea = idea_map.get(slug)
             category = post.get("category", "Unknown")
             round_raw = post.get("round_raw", "Unknown")
@@ -100,235 +182,271 @@ def collect_analyses() -> list[dict]:
 
             analyses.append(
                 {
+                    "slug": slug,
                     "name": post.get("name", slug),
                     "url": post.get("url", ""),
-                    "invest_total": post.get("invest_total", 0),
+                    # Build-only (Plan 02-02)
                     "build_total": post.get("build_total", 0),
-                    "invest_verdict": post.get("invest_verdict", "PASS"),
                     "build_verdict": post.get("build_verdict", "SKIP"),
+                    "killed": bool(post.get("killed", False)),
+                    "kill_reason": post.get("kill_reason", "") or "",
+                    "executive_summary": post.get("executive_summary", "") or "",
+                    "recommended_market": post.get("recommended_market", "") or "",
+                    "time_to_mvp": post.get("time_to_mvp", "") or "",
+                    "time_to_revenue": post.get("time_to_revenue", "") or "",
+                    # Legacy invest fields — keep for backward compat, NOT rendered
+                    "invest_total": post.get("invest_total", None),
+                    "invest_verdict": post.get("invest_verdict", None),
+                    # Enrichment
                     "category": category,
                     "round_raw": round_raw,
                     "one_liner": one_liner,
                     "content": post.content,
                 }
             )
-        except Exception:
+        except Exception as exc:
+            log.warning("failed to load analysis %s: %s", analysis_file.name, exc)
             continue
 
-    # Sort by build_total descending (build-first pipeline)
+    # Sort by build_total desc (build-first pipeline)
     analyses.sort(key=lambda x: x["build_total"], reverse=True)
     return analyses
 
 
-def build_digest_data(stats: dict, analyses: list[dict]) -> str:
-    """Build JSON string of all data to pass to the LLM digest prompt."""
-    data = {
-        "stats": stats,
-        "analyses": analyses,
+# ---------------------------------------------------------------------------
+# LLM synthesis (narrow scope — only key_findings + trends)
+# ---------------------------------------------------------------------------
+
+def _build_summary_payload(stats: dict, analyses: list[dict]) -> dict:
+    """Aggregated payload for the narrow LLM synthesis call.
+
+    Deliberately excludes executive_summary — Python handles per-startup blocks.
+    The LLM only sees counts + minimal per-startup metadata to spot patterns.
+    """
+    slim = [
+        {
+            "name": a["name"],
+            "category": a["category"],
+            "build_verdict": a["build_verdict"],
+            "killed": a["killed"],
+            "kill_reason": a["kill_reason"] if a["killed"] else "",
+            "recommended_market": a["recommended_market"],
+        }
+        for a in analyses
+    ]
+
+    return {
         "date": datetime.date.today().isoformat(),
+        "counts": {
+            "total": stats.get("total", 0),
+            "archived": stats.get("archived", 0),
+            "triaged": stats.get("triaged", 0),
+            "research_candidates": stats.get("research_candidates", 0),
+            "researched": stats.get("researched", 0),
+            "deep_researched": stats.get("deep_researched", 0),
+            "analyzed": stats.get("analyzed", 0),
+            "killed": stats.get("killed", 0),
+        },
+        "route_distribution": stats.get("route_distribution", {}),
+        "analyses": slim,
     }
-    return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _extract_section(content: str, header: str) -> str:
-    """Extract text from a markdown section by header name."""
-    lines = content.split("\n")
-    in_section = False
-    section_lines = []
-    for line in lines:
-        if line.startswith("##") and header.lower() in line.lower():
-            in_section = True
-            continue
-        if in_section:
-            if line.startswith("##"):
-                break
-            section_lines.append(line)
-    return "\n".join(section_lines).strip()
+async def generate_synthesis_with_llm(
+    stats: dict, analyses: list[dict]
+) -> dict:
+    """Narrow LLM call — returns only {key_findings, trends}.
 
+    Never raises. On failure, returns sentinel strings so the deterministic
+    digest can still render the other 4 sections without interruption.
+    """
+    fallback = {
+        "key_findings": "_(LLM synthesis unavailable — см. 3_analysis/ per-startup details)_",
+        "trends": "_(LLM synthesis unavailable — см. 3_analysis/ per-startup details)_",
+    }
 
-def _load_pipeline_tracks() -> dict:
-    """Load pipeline_tracks config."""
-    import yaml
-    cfg_path = Path("config/triage.yaml")
-    if cfg_path.exists():
-        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
-        return cfg.get("pipeline_tracks", {})
-    return {}
+    if not analyses:
+        return {
+            "key_findings": "На этой неделе нет проанализированных стартапов.",
+            "trends": "Недостаточно данных для выводов.",
+        }
 
-
-def build_digest_manually(stats: dict, analyses: list[dict]) -> str:
-    """FALLBACK: Build digest without LLM using string formatting."""
-    today = datetime.date.today().isoformat()
-    tracks = _load_pipeline_tracks()
-    invest_enabled = tracks.get("invest", False)
-
-    invest_candidates = [a for a in analyses if a["invest_verdict"] == "INVEST"]
-    watch_list = [a for a in analyses if a["invest_verdict"] == "WATCH"]
-    build_opps = [
-        a for a in analyses if a["build_verdict"] in ("BUILD", "PARTNER")
-    ]
-
-    priority_dist = stats.get("priority_distribution", {})
-
-    # Pipeline Summary section
-    lines = [
-        f"# Startup Scouting Digest -- Week of {today}",
-        "",
-        "## Pipeline Summary",
-        "",
-        f"- **Parsed:** {stats['total']} startups from DealPad",
-        f"- **After pre-filter:** {stats['total'] - stats['archived']} relevant"
-        f" ({stats['archived']} archived)",
-        f"- **Triaged:** {stats.get('triaged', 0)}"
-        f" (high={priority_dist.get('high', 0)},"
-        f" medium={priority_dist.get('medium', 0)},"
-        f" low={priority_dist.get('low', 0)})",
-        f"- **Build candidates:** {stats.get('build_candidates', 0)}",
-        f"- **Research candidates:** {stats.get('research_candidates', 0)}",
-        f"- **Researched:** {stats.get('researched', 0)}",
-        f"- **Fully analyzed:** {stats['analyzed']}",
-        "",
-    ]
-
-    # INVEST Candidates section
-    lines += [
-        "## INVEST Candidates (invest_score >= 8)",
-        "",
-    ]
-    if invest_candidates:
-        for a in invest_candidates:
-            invest_rationale = _extract_section(a["content"], "Invest Score")
-            risks_text = _extract_section(a["content"], "Risks")
-            first_risk = ""
-            for risk_line in risks_text.split("\n"):
-                stripped = risk_line.strip("- ").strip()
-                if stripped and stripped != "N/A":
-                    first_risk = stripped
-                    break
-
-            lines += [
-                f"### {a['name']} -- {a['invest_total']}/10",
-                f"**Round:** {a['round_raw']} | **Category:** {a['category']}",
-                f"**URL:** {a['url']}",
-                "",
-            ]
-            if invest_rationale:
-                lines.append(invest_rationale[:500])
-            if first_risk:
-                lines.append(f"**Key Risk:** {first_risk}")
-            lines.append("")
-    else:
-        lines += ["No INVEST candidates this week.", ""]
-
-    # WATCH List section
-    lines += [
-        "## WATCH List (score 6-7.9)",
-        "",
-        "| Name | Score | Category | Round | One-liner |",
-        "|------|-------|----------|-------|-----------|",
-    ]
-    if watch_list:
-        for a in watch_list:
-            one_liner = str(a.get("one_liner", "")).replace("|", "/").strip()[:100]
-            name_col = a["name"].replace("|", "/")
-            cat_col = str(a["category"]).replace("|", "/")
-            round_col = str(a["round_raw"]).replace("|", "/")
-            lines.append(
-                f"| {name_col} | {a['invest_total']} | {cat_col}"
-                f" | {round_col} | {one_liner} |"
-            )
-    else:
-        lines.append("| (none this week) | -- | -- | -- | -- |")
-    lines.append("")
-
-    # BUILD Opportunities section
-    lines += [
-        "## BUILD Opportunities (build_score >= 6)",
-        "",
-    ]
-    if build_opps:
-        for a in build_opps:
-            cis_section = _extract_section(a["content"], "CIS Adaptation")
-            one_liner = str(a.get("one_liner", "")).strip()
-            lines += [
-                f"### {a['name']} -- Build Score: {a['build_total']}/10",
-                f"**Category:** {a['category']} | **Round:** {a['round_raw']}",
-            ]
-            if one_liner:
-                lines.append(f"**One-liner:** {one_liner}")
-            lines.append("")
-            if cis_section:
-                lines.append(f"**CIS Adaptation:** {cis_section[:300]}")
-            lines.append("")
-    else:
-        lines += ["No BUILD opportunities this week.", ""]
-
-    # Trends section
-    lines += ["## Trends This Week", ""]
-    if analyses:
-        from collections import Counter
-        category_counts = Counter(a["category"] for a in analyses if a.get("category"))
-        top_categories = category_counts.most_common(5)
-        for cat, count in top_categories:
-            lines.append(f"- **{cat}**: {count} startup(s)")
-    else:
-        lines.append("- No analysis data available yet.")
-    lines.append("")
-
-    # All Analyzed Startups table
-    lines += [
-        "## All Analyzed Startups",
-        "",
-        "| Name | Invest | Build | Category | Round | Invest Verdict | Build Verdict |",
-        "|------|--------|-------|----------|-------|----------------|---------------|",
-    ]
-    if analyses:
-        for a in analyses:
-            name_col = a["name"].replace("|", "/")
-            cat_col = str(a["category"]).replace("|", "/")
-            round_col = str(a["round_raw"]).replace("|", "/")
-            lines.append(
-                f"| {name_col} | {a['invest_total']} | {a['build_total']}"
-                f" | {cat_col} | {round_col}"
-                f" | {a['invest_verdict']} | {a['build_verdict']} |"
-            )
-    else:
-        lines.append("| (no analyzed startups yet) | -- | -- | -- | -- | -- | -- |")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-async def generate_digest_with_llm(data_json: str) -> str:
-    """Try to generate the digest using the LLM. Returns markdown string."""
-    prompt_template = load_prompt("digest")
-    prompt = prompt_template.replace("{analysis_data}", data_json)
-
-    # Only call LLM if dataset is manageable
     try:
-        data = json.loads(data_json)
-        analysis_count = len(data.get("analyses", []))
-    except Exception:
-        analysis_count = 0
+        payload = _build_summary_payload(stats, analyses)
+        payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
+        prompt = load_prompt("digest").replace("{summary_data}", payload_json)
 
-    if analysis_count < 50:
-        try:
-            result = await call_llm(
-                prompt,
-                model=os.getenv("OPENROUTER_MODEL_LIGHT"),
-                json_mode=False,
-                temperature=0.3,
-            )
-            if isinstance(result, str):
-                return result
-        except Exception as e:
-            log.warning("LLM digest generation failed: %s — falling back to manual template", e)
+        result = await call_llm(
+            prompt,
+            model=os.getenv("OPENROUTER_MODEL_LIGHT"),
+            json_mode=True,
+            temperature=0.2,
+        )
 
-    return ""
+        if isinstance(result, Exception) or result is None:
+            log.warning("LLM synthesis failed — using fallback")
+            return fallback
 
+        if isinstance(result, dict):
+            return {
+                "key_findings": str(
+                    result.get("key_findings")
+                    or fallback["key_findings"]
+                ),
+                "trends": str(result.get("trends") or fallback["trends"]),
+            }
+
+        # Unexpected shape (e.g. string back from json_mode failure path)
+        log.warning("LLM synthesis returned unexpected shape: %r", type(result))
+        return fallback
+    except Exception as exc:
+        log.warning("generate_synthesis_with_llm failed: %s", exc)
+        return fallback
+
+
+# ---------------------------------------------------------------------------
+# Deterministic digest builder
+# ---------------------------------------------------------------------------
+
+def _render_startup_block(a: dict) -> str:
+    """Render one BUILD/MONITOR startup block.
+
+    executive_summary goes byte-for-byte (no LLM rewriting). Metadata line
+    (round/category/URL) is appended afterwards.
+    """
+    exec_sum = (a.get("executive_summary") or "").strip() or "_(executive_summary отсутствует)_"
+    round_raw = a.get("round_raw") or "Unknown"
+    category = a.get("category") or "Unknown"
+    url = a.get("url") or ""
+    return (
+        f"### {a['name']} — {a['build_verdict']}\n"
+        f"\n"
+        f"{exec_sum}\n"
+        f"\n"
+        f"**Round:** {round_raw} | **Category:** {category} | **URL:** {url}\n"
+    )
+
+
+def build_digest_deterministic(
+    stats: dict, analyses: list[dict], llm_synthesis: dict
+) -> str:
+    """Primary digest builder — 6 sections, Python templates with narrow LLM inserts.
+
+    Section layout (per 02-CONTEXT.md decisions):
+      1. Pipeline Summary — from `stats`
+      2. Ключевые находки недели — insert `llm_synthesis["key_findings"]`
+      3. BUILD рекомендации — each a where build_verdict ∈ {BUILD, PARTNER} AND not killed
+      4. MONITOR — each a where build_verdict == MONITOR AND not killed
+      5. PASS via kill signals — table rows for killed==True
+      6. Тренды недели — insert `llm_synthesis["trends"]`
+    """
+    today = datetime.date.today().isoformat()
+
+    pd_dist = stats.get("priority_distribution", {})
+    rd_dist = stats.get("route_distribution", {})
+
+    parts: list[str] = []
+
+    parts.append(f"# Startup Scouting Digest — неделя {today}")
+    parts.append("")
+
+    # 1 — Pipeline Summary (deterministic)
+    parts.append("## Pipeline Summary")
+    parts.append("")
+    parts.append(f"- **Parsed:** {stats.get('total', 0)} startups (archived: {stats.get('archived', 0)})")
+    parts.append(
+        f"- **Triaged:** {stats.get('triaged', 0)} "
+        f"(high={pd_dist.get('high', 0)}, "
+        f"medium={pd_dist.get('medium', 0)}, "
+        f"low={pd_dist.get('low', 0)})"
+    )
+    parts.append(
+        f"- **Route distribution:** invest={rd_dist.get('invest', 0)}, "
+        f"build={rd_dist.get('build', 0)}, "
+        f"both={rd_dist.get('both', 0)}, "
+        f"skip={rd_dist.get('skip', 0)}"
+    )
+    parts.append(f"- **Research candidates:** {stats.get('research_candidates', 0)}")
+    parts.append(f"- **Researched:** {stats.get('researched', 0)}")
+    parts.append(f"- **Deep researched (Stage 7.5):** {stats.get('deep_researched', 0)}")
+    parts.append(f"- **Analyzed:** {stats.get('analyzed', 0)}")
+    parts.append(f"- **Killed (kill signals):** {stats.get('killed', 0)}")
+    parts.append("")
+
+    # 2 — Ключевые находки (LLM synthesis insert)
+    parts.append("## Ключевые находки недели")
+    parts.append("")
+    parts.append(llm_synthesis.get("key_findings", "").strip() or "_(нет данных)_")
+    parts.append("")
+
+    # 3 — BUILD рекомендации (deterministic, byte-for-byte exec summary)
+    build_recs = [
+        a for a in analyses
+        if a.get("build_verdict") in ("BUILD", "PARTNER") and not a.get("killed")
+    ]
+    parts.append("## BUILD рекомендации")
+    parts.append("")
+    if build_recs:
+        for a in build_recs:
+            parts.append(_render_startup_block(a))
+            parts.append("")
+    else:
+        parts.append("_На этой неделе нет BUILD/PARTNER рекомендаций._")
+        parts.append("")
+
+    # 4 — MONITOR (deterministic, byte-for-byte exec summary)
+    monitors = [
+        a for a in analyses
+        if a.get("build_verdict") == "MONITOR" and not a.get("killed")
+    ]
+    parts.append("## MONITOR")
+    parts.append("")
+    if monitors:
+        for a in monitors:
+            parts.append(_render_startup_block(a))
+            parts.append("")
+    else:
+        parts.append("_Нет стартапов в статусе MONITOR._")
+        parts.append("")
+
+    # 5 — PASS via kill signals (deterministic table)
+    killed = [a for a in analyses if a.get("killed")]
+    parts.append("## PASS via kill signals")
+    parts.append("")
+    if killed:
+        parts.append("| Name | Category | Kill reason |")
+        parts.append("|------|----------|-------------|")
+        for a in killed:
+            name = str(a["name"]).replace("|", "/")
+            cat = str(a.get("category", "")).replace("|", "/")
+            reason = str(a.get("kill_reason", "")).replace("|", "/").replace("\n", " ")
+            if not reason:
+                reason = "(нет описания)"
+            parts.append(f"| {name} | {cat} | {reason} |")
+    else:
+        parts.append("_На этой неделе нет стартапов, отсечённых kill-сигналами._")
+    parts.append("")
+
+    # 6 — Тренды недели (LLM synthesis insert)
+    parts.append("## Тренды недели")
+    parts.append("")
+    parts.append(llm_synthesis.get("trends", "").strip() or "_(нет данных)_")
+    parts.append("")
+
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 async def run_digest() -> dict:
-    """Main entry point: generate and save the weekly digest."""
+    """Stage 9 entry point.
+
+    Flow: collect_analyses → collect_pipeline_stats → generate_synthesis_with_llm
+    → build_digest_deterministic → write file. No LLM-vs-template branching —
+    the LLM is only ever used for the two narrow synthesis sections.
+    """
     DIGESTS_DIR.mkdir(parents=True, exist_ok=True)
 
     stats = collect_pipeline_stats()
@@ -337,18 +455,14 @@ async def run_digest() -> dict:
     if not analyses:
         log.warning("no analysis files found in 3_analysis/ — generating minimal digest")
 
-    # Try LLM generation first
-    digest_md = ""
-    if analyses:
-        data_json = build_digest_data(stats, analyses)
-        digest_md = await generate_digest_with_llm(data_json)
+    t0 = time.monotonic()
+    llm_synthesis = await generate_synthesis_with_llm(stats, analyses)
+    synth_elapsed = time.monotonic() - t0
+    log.info("Digest synthesis done in %.1fs", synth_elapsed)
 
-    # Fall back to manual template if LLM result is missing or too short
-    if not digest_md or len(digest_md) < 200:
-        digest_md = build_digest_manually(stats, analyses)
+    digest_md = build_digest_deterministic(stats, analyses, llm_synthesis)
 
-    # Generate filename: {YYYY}-W{WW}_weekly.md
-    # Never overwrite existing digests — append _run2, _run3, etc.
+    # Filename: {YYYY}-W{WW}_weekly.md. Never overwrite — append _run2, _run3, …
     today = datetime.date.today()
     week_num = today.isocalendar()[1]
     base_name = f"{today.year}-W{week_num:02d}_weekly"
