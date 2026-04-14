@@ -1,3 +1,7 @@
+# invest_mode — PRESERVED for future re-introduction via a separate prompt + LLM call.
+# As of Phase 02-02, Stage 8 (deep_analysis.py) is BUILD-ONLY; this section is NOT read
+# by deep_analysis.py. Kept here so upstream consumers (legacy code, future invest-mode
+# deep analysis) can still rely on the same config location.
 invest_mode:
   criteria:
     founder_strength: 0.20
@@ -24,6 +28,9 @@ invest_mode:
     warm_intro: +2
     multi_source: +1
 
+# build_mode — aligned with docs/Deep Analysis Upgrade Plan.md (Stage 8, build-only).
+# Verdict taxonomy (canonical): BUILD / PARTNER / MONITOR / SKIP. Never PASS, never WATCH.
+# Killed startups keep their computed build_verdict; digest routing uses the killed flag.
 build_mode:
   criteria:
     market_opportunity: 0.30
