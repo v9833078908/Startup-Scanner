@@ -22,6 +22,14 @@
 
 {deep_research_content}
 
+### Stage 7 gate signals (интерпретация нашего гейта — проверь в deep research)
+
+{gate_signals}
+
+> Эти сигналы были выставлены по данным Stage 5 (до deep research). Если
+> deep research противоречит им — доверяй deep research, отметь расхождение
+> в executive_summary.
+
 ### Legacy research notes (может быть пусто — используй только если deep research report не покрыл тему)
 
 {research_notes}
