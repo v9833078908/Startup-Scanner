@@ -1,101 +1,101 @@
-## Задача
+## Task
 
-Проведи глубокое исследование стартапа **{name}** ({url}).
+Conduct deep research on the startup **{name}** ({url}).
 
-Контекст: мы — стартап-студия i-Free, оцениваем возможность создать аналогичный продукт в одном из регионов (СНГ / MENA / SEA / LATAM). Нам нужна фактура для принятия решения: строить или нет. Пиши так, чтобы руководство могло принять решение без гугления.
+**Context:** we are i-Free, a startup studio evaluating whether to build a localized analog in one of the target regions (CIS / MENA / SEA / LATAM). The output of this research feeds a downstream decision stage whose audience is leadership. They need to answer two questions: **"why this startup?"** and **"why now?"**. Your job is to produce the fact base that makes those answers possible — no verdict, no scoring, just facts with citations.
 
-## Известно на входе
+## Known inputs
 
-- **Описание:** {description}
-- **Раунд:** {round_raw}
-- **Категория:** {category}
-- **Triage LLM build thesis (hypothesis to validate):** {build_thesis}
+- **Description:** {description}
+- **Round:** {round_raw}
+- **Category:** {category}
+- **Triage LLM build thesis (internal hypothesis to validate):** {build_thesis}
 
-> Гипотеза из triage — это стартовая точка, не факт. Подтверди или опровергни её данными, не подтверждай автоматически.
+> The triage hypothesis is a starting point, not a fact. Validate or refute it with data. Do not confirm it automatically. Do not reference the triage hypothesis or pipeline mechanics in your output — this research document is consumed by a downstream analysis stage, not by end users.
 
-## Preliminary findings (validate or refute — NOT authoritative)
+## Startup website excerpt (primary source)
 
-Ниже — сырой черновой сбор от нашего дешёвого DDG+LLM пайплайна (Stage 5)
-и интерпретация нашего гейта (Stage 7). Используй это как стартовую точку,
-НЕ как подтверждённые факты. Твоя автономная работа должна:
-
-1. **VALIDATE** — проверь упомянутые сущности независимо: реальные ли
-   компании, активные ли, релевантные ли на самом деле.
-2. **REFUTE** — если preliminary ошибается, напиши об этом явно с
-   доказательствами (ссылки, цифры).
-3. **EXTEND** — уйди глубже, чем мог DDG/Reddit: финансовые данные, TAM
-   в цифрах, техническая глубина, международные comparables.
-4. **CHALLENGE gate decisions** — если гейт поставил `cis_gap_confirmed=False`
-   на основе 5 RU-посадочных страниц, проверь: это реальные конкуренты или
-   маркетинговые шеллы/лендинги-пустышки?
-
-### Raw evidence (Stage 5 bucketed search — PRIMARY independent data):
-
-Сырые результаты поиска по 5 бакетам (CIS_PLAYERS / DEMAND_SIGNAL /
-GLOBAL_ALT / OSS_BASE / COMMUNITY) — независимые точки данных (title + url
-+ короткий сниппет). Это твой главный preliminary input: URL'ы реальные,
-их можно открыть и проверить. Используй как отправную точку для своего
-независимого ресёрча.
-
-{raw_evidence}
-
-### Stage 5 LLM synthesis (SECONDARY hint — cheap-LLM interpretation, may be wrong):
-
-Это краткое summary, которое наш дешёвый LLM сделал по тем же raw данным
-выше. Оно может ошибаться, путать сущности, упускать важное. Используй
-ТОЛЬКО для контекста; полагайся на raw evidence выше и на свой
-независимый ресёрч.
-
-{preliminary_findings}
-
-### Gate signals (Stage 7):
-
-{gate_signals}
-
-### Website content (из website.md, может быть пусто):
+Raw text extracted from **{url}** by our scraper. This is primary source material from the startup itself — use it as grounding for what the product actually does, pricing, ICP claims, and self-reported traction. Treat it as a primary source (like a press release), not as independent verification — still cross-check claims against third-party data. May be empty if the scraper failed; in that case proceed with your own web research.
 
 {website_summary}
 
-## Что исследовать
+## Anti-hallucination rules (hard)
 
-### 1. Суть бизнеса
-- Что конкретно делает продукт (механика, не buzzwords)
-- Какую проблему решает и насколько она острая
-- Кто платит (ICP — ideal customer profile), кейсы использования
-- Бизнес-модель, ценообразование, средний чек
+These rules override everything else. Violating them makes the research unusable.
 
-### 2. Размер рынка (TAM)
-- Bottom-up оценка: количество потенциальных клиентов × средний чек
-- Динамика рынка: растёт, стагнирует, сжимается (с цифрами роста если есть)
-- Ключевые драйверы роста или торможения
+- **Every number (TAM, revenue, users, growth %) must appear in the format:** `[value] ([source], [year])`. Without a source and year, do not write the number — write "no public data" instead.
+- **Mark secondary sources explicitly.** If a figure comes from a blog re-telling a report rather than the report itself, append `(secondary source)`.
+- **Do not aggregate TAM across reports without disclosure.** Bad: "TAM is $50B." Good: "Gartner estimates segment X at $12B (2024); Statista gives $18B for overlapping segment Y (2023); no direct estimate of the target segment exists."
+- **Prefer primary sources for traction metrics:** Crunchbase, PitchBook, SEC filings, official press releases. Reddit / forum posts are acceptable only for user sentiment, never for traction numbers.
+- **Never invent dates, round sizes, headcounts, or user counts.** If the data is not findable, write "no public data" and move on.
 
-### 3. Конкурентная среда
-- Глобальные конкуренты (прямые и косвенные, с долями рынка если есть)
-- Конкуренты на потенциальных целевых рынках (Россия, СНГ, MENA, SEA, LATAM) — определи где есть gap, а где рынок занят
-- Кто доминирует и почему, где пустое место
+## What to research
 
-### 4. Валидация и traction оригинала
-- Выручка, пользователи, рост (если данные публичны)
-- Отзывы пользователей (G2, Capterra, Product Hunt, Reddit, профильные форумы)
-- Инвесторы и их репутация, сумма и структура раундов
+### 1. Business substance (minimum 150 words)
 
-### 5. Оценка возможности build (для i-Free)
-- Техническая сложность: что под капотом, какой стек нужен
-- Время до MVP: сколько месяцев, какая команда
-- Время до первой выручки: реалистичная оценка
-- Регуляторные барьеры на потенциальных целевых рынках (финтех — лицензии; health — сертификация; и т.п.)
-- Ключевые риски при создании аналога (3-5 пунктов)
+- What the product actually does — mechanics, not buzzwords. A reader should be able to sketch the UI and the data flow from your description.
+- What problem it solves and how acute the problem is — cite user evidence if available.
+- Who pays (ICP — ideal customer profile), concrete use cases.
+- Business model, pricing, ACV or typical deal size.
 
-### 6. Рекомендация по географии
-- На каком рынке имеет смысл строить аналог и почему
-- Основывайся на данных: где спрос, где пусто, где проще зайти
-- Не предполагай "СНГ" по умолчанию — если данные показывают другое, пиши другое
+### 2. Market size (minimum 200 words)
 
-## Формат ответа
+- Bottom-up TAM estimate: number of potential customers × ACV. Show the arithmetic.
+- Top-down TAM from analyst reports, with source and year. Reconcile with bottom-up if they diverge.
+- Market dynamics: growing / flat / shrinking, with growth % and source.
+- Key growth drivers or headwinds (regulatory changes, tech cost curves, behavioral shifts).
 
-- **Объём:** 800-1500 слов.
-- **Язык:** русский; технические термины и названия продуктов/компаний — на английском.
-- **Факты и цифры:** с ссылками на источники. Каждое утверждение о рынке, конкурентах или traction должно опираться на цитируемый источник.
-- **Отсутствие данных:** если данных нет, пиши явно "данные не найдены" или "публичных данных нет" — не додумывай, не выдумывай цифры.
-- **Структура:** используй разделы из блока "Что исследовать" (1-6) как заголовки в ответе.
-- **Вердикт в конце не нужен:** скоринг и вердикт делает Stage 8. Твоя задача — дать полную фактуру.
+### 3. Competitive landscape (minimum 250 words, includes mandatory table)
+
+Cover global players briefly, then spend most of the word budget on regional competition — this is what drives the `recommended_market` decision downstream.
+
+**Required table — competitive status across 5 target regions:**
+
+| Region       | Top-1 local competitor (name, URL) or "no local players" | Traction / share estimate | Gap status |
+|--------------|----------------------------------------------------------|---------------------------|------------|
+| Russia       | ...                                                      | ...                       | OCCUPIED / CONTESTED / GAP / UNKNOWN |
+| CIS ex-RU    | ...                                                      | ...                       | ... |
+| MENA         | ...                                                      | ...                       | ... |
+| SEA          | ...                                                      | ...                       | ... |
+| LATAM        | ...                                                      | ...                       | ... |
+
+Gap status definitions:
+- **OCCUPIED** — a local player has >30% share or dominant brand; new entrant cannot realistically displace within 24 months.
+- **CONTESTED** — 2+ local players competing, none dominant; entry possible but requires differentiation.
+- **GAP** — no meaningful local player; entry window open.
+- **UNKNOWN** — public data insufficient. Use this honestly; do not guess.
+
+Below the table, add 2–3 paragraphs on why dominance or absence exists in each relevant region (regulatory moat, distribution, language, cultural fit, prior attempts that failed).
+
+### 4. Validation and traction of the original (minimum 150 words)
+
+- Revenue, users, growth — if public.
+- Hiring velocity from LinkedIn if observable.
+- User reviews from G2, Capterra, Product Hunt, Reddit, industry forums — quote sentiment, not traction.
+- Investors, their reputation, round size and structure. Flag if lead investor is top-tier (a16z, Sequoia, Lightspeed, Accel, YC, Founders Fund, Benchmark, Index).
+
+### 5. Build feasibility for i-Free (minimum 200 words)
+
+High-level overview only — downstream stages do not need work-package breakdowns. Cover:
+
+- Technical complexity: what is under the hood, what stack is required, which third-party APIs are critical dependencies.
+- Rough time to MVP (months) for a team of 3 fullstack + 1 ML engineer.
+- Rough time to first revenue.
+- Regulatory barriers per candidate target market (fintech licenses, health certification, data residency, etc.).
+- 3–5 key risks of building an analog inside i-Free (be specific — "execution risk" is not a risk).
+
+### 6. Geography recommendation (minimum 100 words)
+
+- Which market makes sense for building an analog and why.
+- Base on data from section 3: where demand exists, where the gap is, where entry is structurally easier.
+- Do not default to CIS — if data points elsewhere, recommend elsewhere.
+- **Negative space analysis:** if the recommended market has no local analog, answer explicitly why. Options: market too small, regulatory barriers, cultural mismatch, prior attempts failed (name them), or simply no one has tried yet. Without this, the geography recommendation is incomplete.
+
+## Format
+
+- **Length:** 800–1500 words total, respecting the per-section minimums above.
+- **Language:** Russian. Technical terms and product / company names stay in English.
+- **Citations:** every market, competitor, or traction claim must link to a source. Inline URLs or footnote-style references are both acceptable.
+- **Missing data:** write "no public data" or "данные не найдены". Do not invent figures.
+- **Structure:** use sections 1–6 as top-level headers in your output, in order.
+- **No verdict:** scoring and verdict are produced by a downstream stage. Your job is the fact base.

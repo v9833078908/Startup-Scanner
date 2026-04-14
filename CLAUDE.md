@@ -106,7 +106,7 @@ Weights: founder_strength=20%, product=15%, traction=15%, market=10%, business_m
 - Green flags: yc=+2, prev_exit=+2, warm_intro=+2, multi_source=+1
 
 ### Build Mode (8 criteria, 1–10 scale)
-Weights: market_opportunity=30%, ifree_fit=25%, technical_feasibility=15%, speed_to_market=10%, revenue_potential=10%, defensibility=5%, trend_alignment=3%, gut_feeling=2%.
+Weights: market_opportunity=30%, ifree_fit=25%, technical_feasibility=15%, speed_to_market=10%, revenue_potential=10%, defensibility=3%, trend_alignment=5%, founder_risk=2%.
 - BUILD: >=8 | PARTNER: 6–7.9 | MONITOR: 4–5.9 | SKIP: <4
 
 Scoring weights are in `config/scoring_weights.yaml` — changeable without touching code.

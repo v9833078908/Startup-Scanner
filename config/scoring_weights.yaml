@@ -38,9 +38,9 @@ build_mode:
     technical_feasibility: 0.15
     speed_to_market: 0.10
     revenue_potential: 0.10
-    defensibility: 0.05
-    trend_alignment: 0.03
-    gut_feeling: 0.02
+    defensibility: 0.03
+    trend_alignment: 0.05
+    founder_risk: 0.02
   thresholds:
     build: 8.0
     partner: 6.0

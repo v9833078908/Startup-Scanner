@@ -34,7 +34,6 @@ import frontmatter
 
 from lib.llm import load_prompt
 from lib.parallel_client import run_deep_research_task
-from lib.research_utils import _format_gate_signals, _format_raw_evidence
 from lib.utils import load_idea, make_slug
 
 log = logging.getLogger("pipeline.deep_research_v2")
@@ -81,10 +80,10 @@ def _build_brief(post: frontmatter.Post, slug: str) -> str:
     # Missing/empty → fall back to explicit placeholder so the prompt still reads well.
     build_thesis = post.get("build_thesis") or "(none — triage did not produce a thesis)"
 
-    # --- Preliminary context (added 02-04) ---------------------------------
-    # All three reads are GRACEFUL — missing file → explicit placeholder.
-    # Anti-anchoring framing lives in the prompt itself; this code only
-    # routes the bytes into the template.
+    # {website_summary} — primary-source landing page content. Other Stage 5/7
+    # artefacts (build_research, gate_build, raw_evidence) are deliberately
+    # NOT injected: Parallel AI runs independent research; anchoring on our
+    # cheap-LLM synthesis biases the output.
     research_dir = RESEARCH_DIR / slug
 
     website_path = research_dir / "website.md"
@@ -93,17 +92,6 @@ def _build_brief(post: frontmatter.Post, slug: str) -> str:
         if website_path.exists()
         else "(website.md not available)"
     )
-
-    build_research_path = research_dir / "build_research.md"
-    preliminary_findings = (
-        build_research_path.read_text(encoding="utf-8")[:3000]
-        if build_research_path.exists()
-        else "(Stage 5 build research not available)"
-    )
-
-    gate_signals = _format_gate_signals(research_dir / "gate_build.md")
-
-    raw_evidence = _format_raw_evidence(research_dir / "build_research_raw.json")
 
     template = load_prompt("deep_research_brief")
     return (
@@ -115,9 +103,6 @@ def _build_brief(post: frontmatter.Post, slug: str) -> str:
         .replace("{category}", str(category))
         .replace("{build_thesis}", str(build_thesis))
         .replace("{website_summary}", website_summary)
-        .replace("{preliminary_findings}", preliminary_findings)
-        .replace("{gate_signals}", gate_signals)
-        .replace("{raw_evidence}", raw_evidence)
     )
 
 

@@ -35,7 +35,6 @@ import frontmatter
 import yaml
 
 from lib.llm import call_llm, load_prompt
-from lib.research_utils import _format_gate_signals
 from lib.utils import make_slug, load_idea
 
 log = logging.getLogger("pipeline.deep_analysis")
@@ -109,13 +108,6 @@ async def analyze_one(
             research_notes += rp.read_text(encoding="utf-8") + "\n\n"
     research_notes = research_notes.strip()
 
-    # --- Stage 7 gate signals (added 02-04) ------------------------------
-    # Graceful read — missing file → placeholder string, never raises.
-    # Uses the shared _format_gate_signals helper from lib.research_utils
-    # so the gate-parsing format has ONE canonical implementation
-    # (also imported by pipeline.deep_research_v2).
-    gate_signals = _format_gate_signals(research_dir / "gate_build.md")
-
     name = post.get("name", slug) or slug
     url = post.get("url", "") or ""
     round_raw = post.get("round_raw", "Unknown") or "Unknown"
@@ -137,7 +129,6 @@ async def analyze_one(
         .replace("{deep_research_content}", deep_research_content[:8000])
         .replace("{website_content}", website_content[:3000])
         .replace("{research_notes}", research_notes[:3000])
-        .replace("{gate_signals}", gate_signals)  # added 02-04
     )
 
     result = await call_llm(
