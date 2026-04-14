@@ -44,8 +44,8 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Parallel AI client + Stage 7.5 Deep Research module
 - [x] 02-02-PLAN.md — Deep Analysis upgrade (kill signals + executive summaries)
-- [ ] 02-03-PLAN.md — Digest upgrade + pipeline wiring
-- [ ] 02-04-PLAN.md — Context enrichment: Parallel AI input + Stage 8 gate_signals
+- [x] 02-03-PLAN.md — Digest upgrade + pipeline wiring
+- [x] 02-04-PLAN.md — Context enrichment: Parallel AI input + Stage 8 gate_signals
 
 ### Phase 3: Multi-Source + Delivery
 - **Goal:** Broad source coverage (8-10 parsers) + Telegram digest delivery for daily use

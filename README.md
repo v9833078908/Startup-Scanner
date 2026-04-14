@@ -49,23 +49,32 @@ python run_pipeline.py --html data/ChatExport_2026-04-13/messages.html --fresh
 ## Roadmap
 
 ### Phase 1: MVP Pipeline (DONE)
-Single source, dual-track architecture, web search research, config-driven track control, weekly digest.
+Single source (DealPad), dual-track architecture, web search research, config-driven track control, weekly digest.
 
-### Phase 2: Multi-Source + Delivery
+### Phase 2: Deep Research + Pipeline Quality Upgrade (DONE, BUILD-ONLY)
+- **Stage 7.5 Deep Research** via Parallel AI Task API — autonomous research with citations for gate-passed startups (`pipeline/deep_research_v2.py`)
+- **Stage 8 Deep Analysis rewrite** — BUILD-only with kill signals (market_occupied, high_capital, far_from_competencies, long_time_to_revenue) + 7-field executive summary. Canonical verdict taxonomy: `build_verdict ∈ {BUILD, PARTNER, MONITOR, SKIP}` + separate `killed: bool` / `kill_reason: str`.
+- **Stage 9 Digest rewrite** — deterministic-first: Python composes per-startup sections with byte-for-byte `executive_summary` insertion; LLM narrowly synthesizes `{key_findings, trends}`. No numeric score leakage.
+- **Anti-anchoring context** — Parallel AI brief includes raw Stage 5 evidence as PRIMARY (URLs + snippets) and the LLM-synthesized summary as SECONDARY hint, framed as "validate or refute, NOT authoritative".
+- **Honest invest guard** — `pipeline_tracks.invest=true` triggers `SystemExit` at deep_analysis (no silent mis-scoring).
+- **Shared helper layer** — `lib/research_utils.py` with `_format_gate_signals` + `_format_raw_evidence`, consumed by both Stage 7.5 and Stage 8.
+
+### Phase 3: Multi-Source + Delivery
 - **10+ parsers** covering global and Russian sources (GitHub Trending, HN, ProductHunt, Reddit, vc.ru, Telegram channels, YC Companies, RSS feeds)
 - **BaseScout pattern** -- each parser is a standalone file, failure of one doesn't block others
 - **Cross-source deduplication** -- same startup from 3 sources = multi_source signal bonus
 - **Telegram bot** -- morning digest delivery, `/top`, `/build`, `/status` commands
 - **Cron automation** -- parsers 3x/day, digest every morning
 
-### Phase 3: Research Quality + Architecture
+### Phase 4: Research Quality + Architecture
 - **core/ abstraction layer** -- idea_store, research_store, analysis_store replace direct file ops
 - **GitHub API enrichment** -- stars, forks, contributors, commit activity for OSS assessment
 - **Incremental processing** -- only new ideas since last run
 - **Prompt versioning + cost tracking** per run
 - **Fake traction detection** -- stars spike without forks/issues, stars:forks >50:1
+- **Invest deep analysis** re-added as a separate prompt + LLM call (resolves Phase 2 temporary limitation)
 
-### Phase 4: Production Polish
+### Phase 5: Production Polish
 - **Human-in-the-loop review UI** -- pause between triage and research for manual candidate selection
 - **Daily + weekly + monthly digest variants**
 - **Build opportunities monthly report** (ranked, with CIS market sizing)
@@ -100,9 +109,12 @@ Disabled tracks skip research, gate, and analysis stages entirely -- zero wasted
 | Exa (alternative) | ~$0.007/req | Best (full page text) | `SEARCH_BACKEND=exa` |
 
 ### LLM Integration
-OpenRouter API with two model tiers:
-- **Light** (Gemini Flash) -- triage, research synthesis, gate evaluation
-- **Heavy** (Gemini Pro) -- deep analysis, scoring, CIS adaptation assessment
+OpenRouter API with three model tiers:
+- **Light** (Gemini Flash) -- triage, pre-filter, research synthesis, extraction
+- **Medium** (Gemini Flash/Pro) -- gate stages (build_gate, invest_gate, research_gate) where binary decision quality matters
+- **Heavy** (Gemini Pro) -- deep analysis, executive summaries, scoring
+
+Plus **Parallel AI Task API** (Stage 7.5) — autonomous deep research with citations (`PARALLEL_API_KEY`, ~$0.025/run on `core` processor). Called only for gate-passed build candidates.
 
 ### Key Design Decisions
 - **Idempotent stages** -- every stage checks for existing output. Safe to re-run, resume after crash.
