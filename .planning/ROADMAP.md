@@ -74,6 +74,7 @@ Plans:
   - [ ] Prompt versioning + cost tracking per run
   - [ ] Unit tests for routing/gating/scoring pure functions
   - [ ] core/ abstraction layer (idea_store, research_store, analysis_store)
+  - [ ] Cleanup legacy `pipeline/research_gate.py` + `prompts/research_gate.md` (unused since Phase 01-09 split into invest_gate/build_gate). Rename `research_gate:` section in `config/triage.yaml` → `invest_gate:` and update reference in `pipeline/invest_gate.py:96`.
 - **Plans:** 0/0
 
 ### Phase 5: Production Polish
