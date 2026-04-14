@@ -34,7 +34,7 @@ import frontmatter
 
 from lib.llm import load_prompt
 from lib.parallel_client import run_deep_research_task
-from lib.research_utils import _format_gate_signals
+from lib.research_utils import _format_gate_signals, _format_raw_evidence
 from lib.utils import load_idea, make_slug
 
 log = logging.getLogger("pipeline.deep_research_v2")
@@ -103,6 +103,8 @@ def _build_brief(post: frontmatter.Post, slug: str) -> str:
 
     gate_signals = _format_gate_signals(research_dir / "gate_build.md")
 
+    raw_evidence = _format_raw_evidence(research_dir / "build_research_raw.json")
+
     template = load_prompt("deep_research_brief")
     return (
         template
@@ -115,6 +117,7 @@ def _build_brief(post: frontmatter.Post, slug: str) -> str:
         .replace("{website_summary}", website_summary)
         .replace("{preliminary_findings}", preliminary_findings)
         .replace("{gate_signals}", gate_signals)
+        .replace("{raw_evidence}", raw_evidence)
     )
 
 

@@ -29,7 +29,22 @@
    на основе 5 RU-посадочных страниц, проверь: это реальные конкуренты или
    маркетинговые шеллы/лендинги-пустышки?
 
-### Preliminary synthesis (Stage 5):
+### Raw evidence (Stage 5 bucketed search — PRIMARY independent data):
+
+Сырые результаты поиска по 5 бакетам (CIS_PLAYERS / DEMAND_SIGNAL /
+GLOBAL_ALT / OSS_BASE / COMMUNITY) — независимые точки данных (title + url
++ короткий сниппет). Это твой главный preliminary input: URL'ы реальные,
+их можно открыть и проверить. Используй как отправную точку для своего
+независимого ресёрча.
+
+{raw_evidence}
+
+### Stage 5 LLM synthesis (SECONDARY hint — cheap-LLM interpretation, may be wrong):
+
+Это краткое summary, которое наш дешёвый LLM сделал по тем же raw данным
+выше. Оно может ошибаться, путать сущности, упускать важное. Используй
+ТОЛЬКО для контекста; полагайся на raw evidence выше и на свой
+независимый ресёрч.
 
 {preliminary_findings}
 

@@ -10,6 +10,7 @@ Architectural rule: pipeline modules MUST NOT import from each other for
 shared helpers. They both import from this module instead.
 """
 
+import json
 from pathlib import Path
 
 
@@ -64,3 +65,59 @@ def _format_gate_signals(gate_path: Path) -> str:
     if decision:
         parts.append("Decision: " + ", ".join(decision))
     return "\n".join(parts)
+
+
+def _format_raw_evidence(raw_path: Path, max_chars: int = 6000) -> str:
+    """Compact `build_research_raw.json` into a prompt-friendly evidence block.
+
+    Why: feeding only the LLM-synthesized markdown re-anchors Parallel AI on
+    the cheap layer's interpretation. Feeding raw JSON's independent evidence
+    (titles + URLs + short snippets across all buckets) lets Parallel AI form
+    its own opinion before seeing our synthesis.
+
+    Per-result format:
+        - <url>
+          <title[:200]>
+          <snippet[:200]>
+
+    Returns documented placeholder when file missing/unreadable/malformed.
+    Never raises.
+    """
+    if not raw_path.exists():
+        return "(Stage 5 raw evidence not available)"
+    try:
+        payload = json.loads(raw_path.read_text(encoding="utf-8"))
+    except OSError:
+        return "(Stage 5 raw evidence not available — read error)"
+    except json.JSONDecodeError:
+        return "(Stage 5 raw evidence not available — malformed JSON)"
+    buckets = payload.get("buckets") or {}
+    if not isinstance(buckets, dict) or not buckets:
+        return "(Stage 5 raw evidence not available — no buckets)"
+
+    bucket_order = ["CIS_PLAYERS", "DEMAND_SIGNAL", "GLOBAL_ALT", "OSS_BASE", "COMMUNITY"]
+    seen = set(bucket_order)
+    ordered = [b for b in bucket_order if b in buckets] + [
+        b for b in buckets.keys() if b not in seen
+    ]
+
+    out: list[str] = []
+    for bucket_name in ordered:
+        bucket = buckets.get(bucket_name) or {}
+        results = bucket.get("results") or []
+        query = bucket.get("query", "")
+        out.append(f"=== {bucket_name} (query: {query!r}, n={len(results)}) ===")
+        for r in results:
+            url = (r.get("url") or "").strip()
+            title = (r.get("title") or "").strip().replace("\n", " ")
+            snippet = (r.get("text") or "").strip().replace("\n", " ")
+            out.append(f"- {url}")
+            if title:
+                out.append(f"  {title[:200]}")
+            if snippet:
+                out.append(f"  {snippet[:200]}")
+
+    text = "\n".join(out)
+    if len(text) > max_chars:
+        text = text[:max_chars] + f"\n[... truncated to {max_chars} chars ...]"
+    return text
